@@ -1,4 +1,6 @@
 fn main() {
+    let mut y = Vec::new();
+    y.push(5);
     foo(1, 2, 3);
 }
 

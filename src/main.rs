@@ -35,8 +35,8 @@ use crate::instrumentation::{
 // included just for code analysis to run on ati.rs
 mod ati;
 
-struct Callbacks {}
-impl rustc_driver::Callbacks for Callbacks {
+struct InstrumentationCallbacks {}
+impl rustc_driver::Callbacks for InstrumentationCallbacks {
     /// Called before creating the compiler instance
     fn config(&mut self, _config: &mut interface::Config) {}
 
@@ -89,6 +89,50 @@ impl rustc_driver::Callbacks for Callbacks {
         _compiler: &interface::Compiler,
         _tcx: TyCtxt<'tcx>,
     ) -> Compilation {
+
+        Compilation::Continue
+    }
+}
+
+struct TypingCallbacks {}
+impl rustc_driver::Callbacks for TypingCallbacks {
+    /// Called before creating the compiler instance
+    fn config(&mut self, config: &mut interface::Config) {
+        config.opts.unstable_opts.no_codegen = true;
+    }
+
+    /// Called after parsing the crate root. Submodules are not yet parsed when
+    /// this callback is called. Return value instructs the compiler whether to
+    /// continue the compilation afterwards (defaults to `Compilation::Continue`)
+    fn after_crate_root_parsing(
+        &mut self,
+        _compiler: &interface::Compiler,
+        _krate: &mut ast::Crate,
+    ) -> Compilation {
+        Compilation::Continue
+    }
+
+    // leaving the other callbacks just in case they are useful
+    fn after_expansion<'tcx>(
+        &mut self,
+        _compiler: &interface::Compiler,
+        tcx: TyCtxt<'tcx>,
+    ) -> Compilation {
+        // discover all function {defs} and {calls}, split into tracked/untracked ({defs} / {calls}\{defs})
+        // 
+
+
+        Compilation::Continue
+    }
+
+    fn after_analysis<'tcx>(
+        &mut self,
+        _compiler: &interface::Compiler,
+        _tcx: TyCtxt<'tcx>,
+    ) -> Compilation {
+        // find spans which map to types at "relevant locations"
+        // relevant locations are places where an untracked function was called
+        // find spans 
         Compilation::Continue
     }
 }
@@ -96,6 +140,10 @@ impl rustc_driver::Callbacks for Callbacks {
 /// Entry-point, forwards all arguments command line arguments to rustc_driver
 pub fn main() {
     let args: Vec<_> = env::args().collect();
-    let mut cbs = Callbacks {};
-    rustc_driver::run_compiler(&args, &mut cbs);
+
+    // let mut typing = TypingCallbacks {};
+    // rustc_driver::run_compiler(&args, &mut typing);
+
+    let mut instr = InstrumentationCallbacks {};
+    rustc_driver::run_compiler(&args, &mut instr);
 }
