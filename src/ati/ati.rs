@@ -17,18 +17,12 @@
  *    optimization.
 */
 
-use std::sync::{Arc, LazyLock, Mutex};
-use std::{
-    collections::{BTreeMap},
-    ops::{Add, Div, Mul, Sub},
-};
-
 pub type Id = u64;
 
 /// Top-level global that owns all information about all value interactions
 /// and ATI site states.
-pub static ATI_ANALYSIS: LazyLock<Arc<Mutex<ATI>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(ATI::new())));
+pub static ATI_ANALYSIS: std::sync::LazyLock<std::sync::Arc<std::sync::Mutex<ATI>>> =
+    std::sync::LazyLock::new(|| std::sync::Arc::new(std::sync::Mutex::new(ATI::new())));
 
 /// Generates incrementing tags of type `Id`, with each call to `tag()`
 #[derive(Debug)]
@@ -89,9 +83,9 @@ where
 }
 
 /// View TaggedValue docstring.
-impl<T> Add<TaggedValue<T>> for TaggedValue<T>
+impl<T> std::ops::Add<TaggedValue<T>> for TaggedValue<T>
 where
-    T: Add<Output = T> + Copy,
+    T: std::ops::Add<Output = T> + Copy,
 {
     type Output = TaggedValue<T>;
 
@@ -106,9 +100,9 @@ where
     }
 }
 
-impl<T> Sub<TaggedValue<T>> for TaggedValue<T>
+impl<T> std::ops::Sub<TaggedValue<T>> for TaggedValue<T>
 where
-    T: Sub<Output = T> + Copy,
+    T: std::ops::Sub<Output = T> + Copy,
 {
     type Output = TaggedValue<T>;
 
@@ -123,9 +117,9 @@ where
     }
 }
 
-impl<T> Mul<TaggedValue<T>> for TaggedValue<T>
+impl<T> std::ops::Mul<TaggedValue<T>> for TaggedValue<T>
 where
-    T: Mul<Output = T> + Copy,
+    T: std::ops::Mul<Output = T> + Copy,
 {
     type Output = TaggedValue<T>;
 
@@ -140,9 +134,9 @@ where
     }
 }
 
-impl<T> Div<TaggedValue<T>> for TaggedValue<T>
+impl<T> std::ops::Div<TaggedValue<T>> for TaggedValue<T>
 where
-    T: Div<Output = T> + Copy,
+    T: std::ops::Div<Output = T> + Copy,
 {
     type Output = TaggedValue<T>;
 
@@ -205,7 +199,7 @@ where
 #[derive(Debug)]
 pub struct Site {
     type_uf: UnionFind,
-    var_tags: BTreeMap<String, Id>,
+    var_tags: std::collections::BTreeMap<String, Id>,
     observed_var_tags: Vec<(String, Id)>,
     name: String, // Debug information
 }
@@ -215,7 +209,7 @@ impl Site {
     pub fn new(name: &str) -> Self {
         Site {
             type_uf: UnionFind::new(),
-            var_tags: BTreeMap::new(),
+            var_tags: std::collections::BTreeMap::new(),
             observed_var_tags: Vec::new(),
             name: name.to_owned(),
         }
@@ -273,12 +267,12 @@ impl Site {
 
 /// Manages multiple Sites at once, to allow for analyzing multiple functions
 pub struct Sites {
-    locs: BTreeMap<String, Site>,
+    locs: std::collections::BTreeMap<String, Site>,
 }
 impl Sites {
     pub fn new() -> Self {
         Sites {
-            locs: BTreeMap::new(),
+            locs: std::collections::BTreeMap::new(),
         }
     }
 
