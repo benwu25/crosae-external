@@ -9,11 +9,13 @@ use std::collections::HashMap;
 use rustc_ast as ast;
 use rustc_ast::mut_visit::{self, MutVisitor};
 use rustc_span::{DUMMY_SP, Ident};
+use rustc_span::Span;
 
 use crate::instrumentation::common::{self, FnInfo};
 
 pub struct TupleLiteralsVisitor<'modfuncs> {
     modified_funcs: &'modfuncs HashMap<String, FnInfo>,
+    call_spans: &'modfuncs HashMap<Span, String>,
 }
 
 impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
@@ -57,7 +59,9 @@ impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
                                 arg_expr.kind = self.unbind_tupled_expr(arg_expr);
                             }
 
-                            *expr = self.tupleify_expr(expr);
+                            if !self.call_spans.contains_key(&func.span) {
+                                *expr = self.tupleify_expr(expr);
+                            }
                         }
                     }
                 }
@@ -84,8 +88,8 @@ impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
 }
 
 impl<'modfuncs> TupleLiteralsVisitor<'modfuncs> {
-    pub fn new(modified_funcs: &'modfuncs HashMap<String, FnInfo>) -> Self {
-        Self { modified_funcs }
+    pub fn new(modified_funcs: &'modfuncs HashMap<String, FnInfo>, call_spans: &'modfuncs HashMap<Span, String>) -> Self {
+        Self { modified_funcs, call_spans }
     }
 
     /// Takes an expression of type T and converts it to an expression of TaggedValue<T>,

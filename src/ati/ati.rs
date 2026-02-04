@@ -19,7 +19,7 @@
 
 use std::sync::{Arc, LazyLock, Mutex};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap},
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -191,6 +191,15 @@ where
     }
 }
 
+impl<T> std::hash::Hash for TaggedValue<T> 
+where 
+    T: Copy + std::hash::Hash,
+{
+    fn hash<H>(&self, hasher: &mut H) where H: std::hash::Hasher { 
+        self.0.hash(hasher)
+    }
+}
+
 /// Represents a Site under analysis, ultimately a mapping of in-scope
 /// variables to thier values at the start and end of each function.
 #[derive(Debug)]
@@ -300,7 +309,7 @@ impl Sites {
 /// Basic UnionFind implementation, with some light rank optimization.
 #[derive(Debug)]
 pub struct UnionFind {
-    id_to_index: HashMap<Id, usize>,
+    id_to_index: std::collections::HashMap<Id, usize>,
     pub index_to_set: Vec<Id>,
     parent: Vec<usize>,
     rank: Vec<usize>,
@@ -311,7 +320,7 @@ impl UnionFind {
     /// Constructor
     pub fn new() -> Self {
         Self {
-            id_to_index: HashMap::new(),
+            id_to_index: std::collections::HashMap::new(),
             index_to_set: Vec::new(),
             parent: Vec::new(),
             rank: Vec::new(),

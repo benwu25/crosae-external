@@ -15,6 +15,7 @@ extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_interface;
 extern crate rustc_middle;
+extern crate rustc_hir;
 extern crate rustc_parse;
 extern crate rustc_session;
 extern crate rustc_span;
@@ -24,18 +25,23 @@ use rustc_ast::mut_visit::MutVisitor;
 use rustc_driver::Compilation;
 use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Span;
+use rustc_middle::ty::Ty;
 
-use std::env;
+use std::{collections::{HashMap, HashSet}, env};
+use rustc_span::def_id::DefId;
 
 mod instrumentation;
 use crate::instrumentation::{
-    TupleLiteralsVisitor, UpdateFnDeclsVisitor, create_stubs, define_types_from_file,
+    FindCallsVisitor, TupleLiteralsVisitor, UpdateFnDeclsVisitor, create_stubs, define_types_from_file
 };
 
 // included just for code analysis to run on ati.rs
 mod ati;
 
-struct InstrumentationCallbacks {}
+struct InstrumentationCallbacks {
+    pub call_spans: HashMap<Span, String>,
+}
 impl rustc_driver::Callbacks for InstrumentationCallbacks {
     /// Called before creating the compiler instance
     fn config(&mut self, _config: &mut interface::Config) {}
@@ -57,7 +63,7 @@ impl rustc_driver::Callbacks for InstrumentationCallbacks {
 
         // tuple all literals to create tags, untupling as necessary
         // when they are passed into untracked functions
-        let mut visitor = TupleLiteralsVisitor::new(modified_funcs);
+        let mut visitor = TupleLiteralsVisitor::new(modified_funcs, &self.call_spans);
         visitor.visit_crate(krate);
 
         // create all required function stubs, which perform site management
@@ -94,8 +100,13 @@ impl rustc_driver::Callbacks for InstrumentationCallbacks {
     }
 }
 
-struct TypingCallbacks {}
-impl rustc_driver::Callbacks for TypingCallbacks {
+struct TypingCallbacks {
+    /// for ident matching?
+    /// let def_path = tcx.def_path_str(def_id);
+    fn_defs: HashSet<DefId>,
+    call_spans: Option<HashMap<Span, String>>,
+}
+impl<'a> rustc_driver::Callbacks for TypingCallbacks {
     /// Called before creating the compiler instance
     fn config(&mut self, config: &mut interface::Config) {
         config.opts.unstable_opts.no_codegen = true;
@@ -119,8 +130,23 @@ impl rustc_driver::Callbacks for TypingCallbacks {
         tcx: TyCtxt<'tcx>,
     ) -> Compilation {
         // discover all function {defs} and {calls}, split into tracked/untracked ({defs} / {calls}\{defs})
-        // 
 
+        for local_def_id in tcx.hir_body_owners() {
+            let def_id = local_def_id.to_def_id();
+            self.fn_defs.insert(def_id);
+        }
+
+        let mut find_calls_visitor = FindCallsVisitor{ 
+            tcx,
+            // FIXME: this really shouldn't be a clone
+            defs: self.fn_defs.clone(),
+            call_spans: HashMap::new(),
+        };
+        tcx.hir_walk_toplevel_module(&mut find_calls_visitor);
+        // println!("defs:  {:?}", find_calls_visitor.defs);
+        // println!("calls: {:?}", find_calls_visitor.call_spans);
+
+        self.call_spans.replace(find_calls_visitor.call_spans);
 
         Compilation::Continue
     }
@@ -141,9 +167,16 @@ impl rustc_driver::Callbacks for TypingCallbacks {
 pub fn main() {
     let args: Vec<_> = env::args().collect();
 
-    // let mut typing = TypingCallbacks {};
-    // rustc_driver::run_compiler(&args, &mut typing);
+    let mut typing = TypingCallbacks {
+        fn_defs: HashSet::new(),
+        call_spans: None,
+    };
+    rustc_driver::run_compiler(&args, &mut typing);
 
-    let mut instr = InstrumentationCallbacks {};
+    println!("CS: {:#?}", typing.call_spans);
+
+    let mut instr = InstrumentationCallbacks {
+        call_spans: typing.call_spans.take().unwrap(),
+    };
     rustc_driver::run_compiler(&args, &mut instr);
 }
