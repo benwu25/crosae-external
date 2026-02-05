@@ -31,7 +31,8 @@ pub fn compile_and_execute(test_dir: &str, file_name: &str) -> String {
         .unwrap();
 
     if !compile_output.status.success()  {
-        panic!("Unable to compile!!!");
+        let e = String::from_utf8(compile_output.stderr).unwrap();
+        panic!("Unable to compile!!! STDERR: {e}");
     }
 
     // Execute command

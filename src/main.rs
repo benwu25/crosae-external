@@ -26,7 +26,6 @@ use rustc_driver::Compilation;
 use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
-use rustc_middle::ty::Ty;
 
 use std::{collections::{HashMap, HashSet}, env};
 use rustc_span::def_id::DefId;
@@ -172,8 +171,6 @@ pub fn main() {
         call_spans: None,
     };
     rustc_driver::run_compiler(&args, &mut typing);
-
-    println!("CS: {:#?}", typing.call_spans);
 
     let mut instr = InstrumentationCallbacks {
         call_spans: typing.call_spans.take().unwrap(),

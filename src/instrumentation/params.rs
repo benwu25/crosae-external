@@ -107,13 +107,16 @@ impl UpdateFnDeclsVisitor {
 
     /// Searches through type `ty` to find and tuple all primitive types 
     /// that should be tupled. Modifies the type in place.
+    /// Strips off references (both & and &mut), acting on the actual referenced-types.
     fn recursively_tuple_type<'a>(&self, ty: &'a mut ast::Ty) {
-        if common::can_type_be_tupled(ty) {
-            self.tuple_type(ty);
+        let peeled_type = peel_refs(ty);
+
+        if common::can_type_be_tupled(peeled_type) {
+            self.tuple_type(peeled_type);
             return;
         }
 
-        if let ast::TyKind::Path(_, path) = &mut ty.kind {
+        if let ast::TyKind::Path(_, path) = &mut peeled_type.kind {
             for segment in path.segments.iter_mut() {
                 if let Some(box ast::GenericArgs::AngleBracketed(ast::AngleBracketedArgs{
                     args,
@@ -123,7 +126,7 @@ impl UpdateFnDeclsVisitor {
                         if let ast::AngleBracketedArg::Arg(ast::GenericArg::Type(ty)) = arg {
                             self.recursively_tuple_type(ty);
                         } else {
-                            // TODO: Lifetimes
+                            // TODO: Lifetimes (also above in type peeling?)
                             todo!();
                         }
                     }
@@ -131,4 +134,16 @@ impl UpdateFnDeclsVisitor {
             }
         }
     }
+}
+
+// TODO: this is equiv to Ty::peel_refs but just mutable rather than shared borrows
+// there has to be a better way!
+fn peel_refs(ty: &mut ast::Ty) -> &mut ast::Ty {
+    let mut final_ty = ty;
+    while let ast::TyKind::Ref(_, ast::MutTy { ref mut ty, .. }) | ast::TyKind::Ptr(ast::MutTy { ref mut ty, .. }) = final_ty.kind
+    {
+        final_ty = &mut **ty;
+    }
+
+    final_ty
 }

@@ -100,6 +100,57 @@ where
     }
 }
 
+impl<T> std::ops::Add<&TaggedValue<T>> for TaggedValue<T>
+where
+    T: std::ops::Add<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn add(self, rhs: &TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 + rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Add<TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Add<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn add(self, rhs: TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 + rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Add<&TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Add<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn add(self, rhs: &TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 + rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
 impl<T> std::ops::Sub<TaggedValue<T>> for TaggedValue<T>
 where
     T: std::ops::Sub<Output = T> + Copy,
@@ -107,6 +158,57 @@ where
     type Output = TaggedValue<T>;
 
     fn sub(self, rhs: Self) -> Self::Output {
+        let res = ATI::track(self.0 - rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Sub<&TaggedValue<T>> for TaggedValue<T>
+where
+    T: std::ops::Sub<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn sub(self, rhs: &Self) -> Self::Output {
+        let res = ATI::track(self.0 - rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Sub<TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Sub<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn sub(self, rhs: TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 - rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Sub<&TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Sub<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn sub(self, rhs: &TaggedValue<T>) -> Self::Output {
         let res = ATI::track(self.0 - rhs.0);
 
         let mut ati = ATI_ANALYSIS.lock().unwrap();
@@ -134,6 +236,57 @@ where
     }
 }
 
+impl<T> std::ops::Mul<&TaggedValue<T>> for TaggedValue<T>
+where
+    T: std::ops::Mul<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn mul(self, rhs: &TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 * rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Mul<TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Mul<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn mul(self, rhs: TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 * rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Mul<&TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Mul<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn mul(self, rhs: &TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 * rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
 impl<T> std::ops::Div<TaggedValue<T>> for TaggedValue<T>
 where
     T: std::ops::Div<Output = T> + Copy,
@@ -150,6 +303,58 @@ where
         res
     }
 }
+
+impl<T> std::ops::Div<&TaggedValue<T>> for TaggedValue<T>
+where
+    T: std::ops::Div<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn div(self, rhs: &TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 / rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Div<TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Div<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn div(self, rhs: TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 / rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
+impl<T> std::ops::Div<&TaggedValue<T>> for &TaggedValue<T>
+where
+    T: std::ops::Div<Output = T> + Copy,
+{
+    type Output = TaggedValue<T>;
+
+    fn div(self, rhs: &TaggedValue<T>) -> Self::Output {
+        let res = ATI::track(self.0 / rhs.0);
+
+        let mut ati = ATI_ANALYSIS.lock().unwrap();
+        ati.union_tags(&self, &rhs);
+        ati.union_tags(&res, &self);
+
+        res
+    }
+}
+
 
 impl<T> PartialEq for TaggedValue<T>
 where

@@ -4,13 +4,18 @@
  * point where they are discovered by the visitor in params.rs, to the point
  * where stubs are created, in stubs.rs.
 */
-use rustc_ast as ast;
+use rustc_ast::{self as ast};
 use rustc_ast::{Ty, token::{Lit, LitKind}};
 use rustc_span::{sym};
+
+// TODO: this whole file is due for a refactor.
+// split out the things that help with types, split out the things 
+// that help with functions, etc...
 
 /// Returns true if the passed in node represents a type which 
 /// is tupled at the top level (does not recursively search through generics)
 fn is_type_tupled(ty: &Ty) -> bool {
+    let ty = ty.peel_refs(); // ignore & and &mut, we care about actual type
     if let ast::TyKind::Path(_, ast::Path { ref segments, .. }) = ty.kind {
         segments[0].ident.as_str() == "TaggedValue"
     } else {
@@ -56,55 +61,127 @@ pub fn can_type_be_tupled(ty: &Ty) -> bool {
     )
 }
 
-/// Converts an ast Path Ty into the full type string,
-// FIXME: I'm actually not sure what this will do with unit types. 
-// FIXME: probably a good idea to make this return a Result in case of poorly formatted type strings
-fn expand_path_string(ty_path: &ast::Path) -> String {
-    ty_path
-        .segments
-        .iter()
-        .map(|segment| {
-            let ident = segment.ident.as_str().to_string();
+fn get_lifetime_string(lifetime: &ast::Lifetime) -> String {
+    format!("'{}", lifetime.ident.to_string())
+}
 
-            if let Some(box ast::GenericArgs::AngleBracketed(ast::AngleBracketedArgs {
-                args,
-                ..
-            })) = &segment.args
-            {
-                // recursively resolve generic type args:
-                // like Vec<Result<u32, ()>>
-                let bracketed = args
-                    .iter()
-                    .map(|arg| {
-                        if let ast::AngleBracketedArg::Arg(ast::GenericArg::Type(ty)) = arg {
-                            if let box ast::Ty {
-                                kind: ast::TyKind::Path(_, path),
-                                ..
-                            } = ty
-                            {
-                                // recursively expand those types
-                                expand_path_string(path)
-                            } else {
-                                // this should never happen, as the types in < ... > in a
-                                // path type should also be paths themselves
-                                panic!();
-                            }
-                        } else {
-                            // TODO: handle lifetimes (different GenericArg variant)?
-                            todo!();
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
+/// Converts an ast Ty into the full type string,
+// FIXME: i hate the way that I'm parsing strings here, feels like a lot of unnecessary format!s
+// I also think there might be a way to go from Span -> underlying text repr. would be really nice here
+fn get_type_string(ty_path: &ast::Ty) -> String {
+    match &ty_path.kind {
+        rustc_ast::TyKind::Slice(box ty) => format!("[{}]", get_type_string(ty)),
+        rustc_ast::TyKind::Ref(lifetime, ast::MutTy {
+            box ty,
+            mutbl,
+        }) => {
+            let mut_str = mutbl.prefix_str();
+            let lt_str = match lifetime {
+                Some(lifetime) => format!("{} ", get_lifetime_string(lifetime)),
+                None => "".to_string(),
+            };
+            let refed_type_str = get_type_string(ty);
 
-                format!("{ident}<{bracketed}>")
-            } else {
-                // no generic arguments in type string
-                ident
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("::")
+            format!("&{lt_str}{mut_str}{refed_type_str}")
+        },
+        rustc_ast::TyKind::Tup(v) => {
+            let types = v.iter().map(|box ty| {
+                get_type_string(ty)
+            }).collect::<Vec<_>>().join(", ");
+
+            format!("({types})")
+        },
+
+        // idk what qself really does... ignoring for now
+        rustc_ast::TyKind::Path(qself, path) => {
+            path.segments.iter().map(|segment| {
+                let ident_str = segment.ident.to_string();
+
+                // these are the <Generic, Args>  passed in
+                let generics_str = if let Some(box generics) = &segment.args {
+                    match generics {
+                        ast::GenericArgs::AngleBracketed(ast::AngleBracketedArgs{
+                            args,
+                            ..
+                        }) => {
+                            // <'a, A, B, C>
+                            let arg_list_string = args.iter().map(|arg| {
+                                match arg {
+                                    rustc_ast::AngleBracketedArg::Arg(generic_arg) => { 
+                                        match generic_arg {
+                                            rustc_ast::GenericArg::Lifetime(lifetime) => get_lifetime_string(lifetime),
+                                            rustc_ast::GenericArg::Type(box ty) => get_type_string(&ty),
+                                            rustc_ast::GenericArg::Const(anon_const) => {
+                                                // idt this is going to be helpful for us
+                                                unimplemented!()
+                                            },
+                                        }
+                                    },
+                                    rustc_ast::AngleBracketedArg::Constraint(assoc_item_constraint) => {
+                                        // ": Trait"
+                                        // this also has to be done at some point
+                                        unimplemented!();
+
+                                    },
+                                }
+                            }).collect::<Vec<_>>().join(", ");
+
+                            format!("<{arg_list_string}>")
+                        },
+                        ast::GenericArgs::Parenthesized(ast::ParenthesizedArgs {
+                            inputs,
+                            output,
+                            ..
+                        }) => {
+                            // (A, B) -> C
+                            let input_list_str = inputs.iter().map(|box input_ty| {
+                                get_type_string(input_ty)
+                            }).collect::<Vec<_>>().join(", ");
+
+                            let output_str = match output {
+                                rustc_ast::FnRetTy::Default(_) => "".into(),  // unit type return
+                                rustc_ast::FnRetTy::Ty(box ty) => format!(" -> {}", get_type_string(ty)),
+                            };
+
+                            format!("({input_list_str}){output_str}")
+                        },
+                        ast::GenericArgs::ParenthesizedElided(span) => {
+                            // (..)
+                            // i've never even seen this before
+                            unimplemented!()
+                        },
+                    }
+                } else {
+                    "".into()
+                };
+
+                format!("{ident_str}{generics_str}")
+            }).collect::<Vec<_>>().join("::")
+        },
+
+        rustc_ast::TyKind::ImplicitSelf |  // def necessary at some point
+        rustc_ast::TyKind::MacCall(_) |
+        rustc_ast::TyKind::CVarArgs |
+        rustc_ast::TyKind::Pat(_, _) |
+        rustc_ast::TyKind::Err(_) |
+        rustc_ast::TyKind::Dummy |
+        rustc_ast::TyKind::Paren(_) |
+        rustc_ast::TyKind::TraitObject(_, _) | // prob necessary at some point
+        rustc_ast::TyKind::ImplTrait(_, _) | // also this 
+        rustc_ast::TyKind::Never |
+        rustc_ast::TyKind::UnsafeBinder(_) |
+        rustc_ast::TyKind::FnPtr(_) |
+        rustc_ast::TyKind::PinnedRef(_, _) |
+        rustc_ast::TyKind::Array(_, _) |
+        rustc_ast::TyKind::Ptr(_) => {
+            todo!("I still don't really know what to do with these types");
+            // they are either weird to include for the current use case, or just won't be supported
+        },
+        
+        // we are trying to get a well formed type string. 
+        // encountering this means thats impossible
+        rustc_ast::TyKind::Infer => panic!(),
+    }
 }
 
 /// Stores all information discovered by the UpdateFnDeclsVisitor about functions
@@ -131,9 +208,12 @@ impl FnInfo {
                     let param_name = ident.as_str();
                     format!(
                         r#"
-                        {site_name}.bind(stringify!({param_name}), {param_name});
+                        {site_name}.bind(stringify!({param_name}), {param_name}.clone());
                     "#
                     )
+                    // TODO: is the above .clone() fine???
+                    // TODO: what happens if a collection is passed across a function boundary?
+                    // are all vars in the collection added to the site?
                 } else {
                     unreachable!();
                 }
@@ -149,27 +229,23 @@ impl FnInfo {
     /// `fn my_foo(< a: u32, b: f64 >);`
     fn create_param_decls(&self) -> String {
         // FIXME: probably combined this function with create_passed_params
+        // println!("PARAMS: {:#?}", &self.params);
         self.params
             .iter()
             .map(|param| {
                 if let ast::Param {
                     pat:
                         box ast::Pat {
-                            kind: ast::PatKind::Ident(_, ref ident, _),
+                            kind: ast::PatKind::Ident(_, ident, _),
                             ..
                         },
-                    ty:
-                        box ast::Ty {
-                            kind: ast::TyKind::Path(_, ref path),
-                            ..
-                        },
+                    ty,
                     ..
-                } = **param
+                } = &**param
                 {
                     let param_name = ident.as_str();
-                    let param_ty = expand_path_string(path);
-
-                    format!(r#"{param_name}: {param_ty}"#)
+                    let type_str = get_type_string(&ty);
+                    format!(r#"{param_name}: {type_str}"#)
                 } else {
                     unreachable!();
                 }
@@ -210,12 +286,9 @@ impl FnInfo {
     /// into a regular type string. Return None if
     /// the return type is ().
     fn create_return_type(&self) -> Option<String> {
-        if let ast::FnRetTy::Ty(box ast::Ty {
-            kind: ast::TyKind::Path(_, ref path),
-            ..
-        }) = *self.return_ty
+        if let box ast::FnRetTy::Ty(ty) = &self.return_ty
         {
-            Some(expand_path_string(path))
+            Some(get_type_string(ty))
         } else {
             None
         }
