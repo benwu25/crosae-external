@@ -26,12 +26,12 @@ Note that if this project is built into a binary, it requires extra linking with
 ## File Description
 The following files make up the majority of the implementation:
 
-1. `src/main.rs`: Entry point. Defines necessary callbacks (which perform multiple passes over the AST to add necessary statements), then invokes `rustc` passing in these callbacks and forwarding all arguments.
-2. `src/ati/ati.rs`: Contains all code used by instrumentation during runtime, to track tagged value interactions. The contents of this file are automatically defined in the root file of the INPUT source file.
-3. `src/instrumentation/params.rs`: Defines the first AST pass, responsible for discovering all instrumented functions, updating their signatures to make primitive types into tagged values. Function names are changed to allow for the creation of "stubs". All structs which contain primitive types are also converted to use tagged values instead.
-4. `src/instrumentation/statements.rs`: Defines the second AST pass, responsible for converting all literal expressions into tracked values.
-5. `src/instrumentation/stubs.rs`: Creates copies of each instrumented function, to run necessary preludes before function execution and epilogues after function execution. This controls the sites, points in the program where we report the discovered abstract types, on function entrance and exit.
-6. `src/instrumentation/types.rs`: Responsible for defining all functions and types in `ati.rs` in INPUT.
+1. `src/ati/*`: Contains the ATI library that is used at runtime to dynamically keep track of value interactions.
+2. `src/callbacks/*`: Defines the callbacks used by various compiler invocations. DATIR currently relies on being able to perform two compilations, one to generally gather some information, another to perform the actual instrumentation.
+3. `src/file_loaders/*`: Defines a custom FileLoader which is capable of performing AST-level mutations before the file contents even make it to the compiler parser.
+4. `src/types/*`: Defines helpful collections of data used throughout the project.
+4. `src/visitors/*`: Defines the visitors which mutate or discover information from various IRs. These visitors are ultimately orchestrated by the callbacks or FileLoaders.
+6. `src/common/*`: Miscellaneous helper functions, used throughout.
 7. `tests/*`: Unit tests, which invoke the compiler on input files and checks the ATI output against an expected partition.
 
 ## Output
@@ -61,10 +61,7 @@ This instrumentation only reports the abstract types of formals and return value
 ## Features yet to be implemented:
 The following is a list of features still in progress:
 
-1. Instrumenting multi-file projects. The current version only supports instrumentation of a single file.
-2. Collections (like `Vec`) are currently unsupported.
-    - In general, non-user defined functions which return complex types will break instrumentation.
-3. Methods implemented on structs or enums
-4. Enums
-5. Closures
-6. Lifetimes in type definitions
+1. It is left unspecified how to handle complex return types from untracked functions.
+2. Methods implemented on structs or enums
+3. Enums?
+4. Closures?
