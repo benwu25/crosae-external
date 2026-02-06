@@ -1,6 +1,7 @@
-/* Creates function stubs for each tracked function discovered
- * by the visitor in params.rs. Each stub sets up enter and exit
- * sites before invoking the actual function.
+/* Creates function stubs for each tracked function that was discovered. 
+ * Each stub sets up enter and exit sites before invoking the actual function.
+ * Any formals are registered to both enter and exit sites, the return value
+ * is also registered to the exit site, under the name "RET".
 */
 use rustc_ast as ast;
 
@@ -9,6 +10,7 @@ use rustc_session::parse::ParseSess;
 use crate::common;
 use crate::types::ati_info::FunctionSignatures;
 
+/// Creates bind statements for all formals to a site with name `site_name`.
 fn create_site_binds<'a>(
     site_name: &str,
     inputs: impl Iterator<Item = &'a (String, bool, String)>,
@@ -26,6 +28,11 @@ fn create_site_binds<'a>(
         .join("\n")
 }
 
+/// Creates a function stub string based off the passed in information.
+/// 
+/// If the function is main, the stub includes the call to report all ATI information 
+/// at the end of execution. If the function has a return value, the stub will make
+/// sure to include the RET variable in the exit site.
 fn create_fn_stub(
     fn_name: &String,
     inputs: &Vec<(String, bool, String)>,

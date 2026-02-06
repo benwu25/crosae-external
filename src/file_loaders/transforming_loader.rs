@@ -1,3 +1,9 @@
+/* This file defines a TransformingFileLoader. This struct can be used in place 
+ * of the regular file loader used by rustc to read in any file it is about to compile
+ * by setting `config.file_loader` (easiest way to do that is by using the `config()`
+ * callback). This custom loader allows for using the regular AST visitor pattern but to 
+ * mutate *any* file, and not just the root.
+*/
 use rustc_ast as ast;
 use rustc_ast::mut_visit::MutVisitor;
 use rustc_ast_pretty::pprust;
@@ -11,11 +17,13 @@ use crate::types::ati_info::FunctionBoundaries;
 use crate::visitors::create_stubs;
 use crate::visitors::{TupleLiteralsVisitor, UpdateFnDeclsVisitor, import_root_crate};
 
-/// This FileLoader constructs an intermediate AST of any file that is pushed
+/// This FileLoader constructs an early intermediate AST of any file that is loaded
 /// through it. This intermediate AST can be modified using the regular Visitor
 /// pattern, before being written back into a string format and actually handed
-/// off to the rest of rustc. This overall allows for making AST modifications
-/// to files which are not just the crate root.
+/// off to the rest of rustc. Rustc will then reconstruct this same AST, which is
+/// quite unfortunate. But, this overall allows for making AST modifications
+/// to files which are not just the crate root using the same infrastructure as the 
+/// rest of the compiler.
 // NIT: would be nice to make this accept a list of visitors to execute
 pub struct TransformingFileLoader {
     /// The regular FileLoader that rustc uses
@@ -71,14 +79,14 @@ impl TransformingFileLoader {
         };
 
         // discovers all functions that will be instrumented, and updates
-        // the function signatures to tag all passed values as necessary.
-        // also updates type definitions in structs.
+        // the function signatures to tag all passed-in params, if necessary.
+        // also updates type definitions in structs to have fields be tagged.
         let mut fn_decls_vis = UpdateFnDeclsVisitor::new(&self.fbs);
         fn_decls_vis.visit_crate(&mut krate);
 
-        // tuple all literals to create tags, untupling params as necessary
-        // when they are passed into untracked functions, tupling returns
-        // if untracked functions return trackable types.
+        // tuple all literals to create tags, untupling them as necessary
+        // when they are passed into untracked functions, and further re-tupling returns
+        // from those untracked functions if they return trackable types.
         let mut tl_vis = TupleLiteralsVisitor::new(&self.fbs);
         tl_vis.visit_crate(&mut krate);
 
@@ -86,6 +94,8 @@ impl TransformingFileLoader {
         let fn_sigs = fn_decls_vis.get_new_fn_signatures();
         create_stubs(&mut krate, &psess, &fn_sigs);
 
+        // if we are processing a dependancy file, make the ATI types available
+        // to it from the root.
         if !matches!(file_type, FileType::Root) {
             import_root_crate(&mut krate, &psess);
         }
@@ -94,7 +104,8 @@ impl TransformingFileLoader {
     }
 
     /// Converts an Crate AST to a standard string representation, equivalent
-    /// to that of a regular source file.
+    /// to that of a regular source file. After this call, the regular rustc
+    /// parser will be ready to run again consuming the output string.
     fn ast_to_source(&self, krate: &ast::Crate) -> String {
         let mut output = String::new();
 
@@ -113,6 +124,8 @@ impl TransformingFileLoader {
         output
     }
 
+    /// Reads in a file at `path` directly, while also determining what kind of
+    /// file it is (Root, Dep, or Untracked)
     fn read_file(&self, path: &Path) -> io::Result<FileContents> {
         let contents = self.inner.read_file(path)?;
         let path_str = path.to_str().unwrap_or("");
@@ -158,7 +171,7 @@ impl FileLoader for TransformingFileLoader {
         }
     }
 
-    // Would we ever do this? I guess if we do like extern linking?
+    // Would we ever do this? I guess if we do like extern linking? idk when this is invoked.
     fn read_binary_file(&self, path: &Path) -> io::Result<std::sync::Arc<[u8]>> {
         unimplemented!()
     }

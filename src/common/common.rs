@@ -1,10 +1,6 @@
-use std::path::Path;
-
 /* Provides helper functions that are used throughout this entire project.
  * Namely, this includes determining the set of types that are considered
- * able to be tagged, and carrying tracked function information from the
- * point where they are discovered by the visitor in params.rs, to the point
- * where stubs are created, in stubs.rs.
+ * able to be tagged, as well as moving between different representations of types.
 */
 use rustc_ast::token::{Lit, LitKind};
 use rustc_ast::{self as ast};
@@ -12,8 +8,9 @@ use rustc_parse::lexer::StripTokens;
 use rustc_parse::parser::ForceCollect;
 use rustc_session::parse::ParseSess;
 use rustc_span::{FileName, RealFileName, sym};
-
 use rustc_parse::new_parser_from_source_str;
+
+use std::path::Path;
 
 /// Determines whether or not the passed in literal can be converted
 /// into a TaggedValue. Modify the below list to enable/disable tupling literals.
@@ -37,9 +34,12 @@ pub fn peel_refs(ty: &mut ast::Ty) -> &mut ast::Ty {
     final_ty
 }
 
-/// TODO: refine this function, it would be nice to not use strings
-/// for this use case at all, and instead mir::Tys. mir::Tys are interned though,
-/// and should be cleaned by this point. Maybe its possible to do mir::Ty -> ast::Ty.
+/// Determines if this type string (like "u32", or "Vec<u32>") can be tupled. 
+/// Currently does this naively, only numeric primitives are allowed to be tupled.
+// TODO: refine this function, it would be nice to not use strings
+// for this use case at all, and instead mir::Tys. mir::Tys are interned though,
+// and should be cleaned by this point. Maybe its possible to do mir::Ty -> ast::Ty.
+// It's also kind of gross that this function is different from `can_type_be_tupled`
 pub fn can_type_string_be_tupled(ty_str: &str) -> bool {
     [
         "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "f16", "f32", "f64",
@@ -49,12 +49,11 @@ pub fn can_type_string_be_tupled(ty_str: &str) -> bool {
     .any(|prefix| ty_str.starts_with(prefix))
 }
 
-/// Determines whether or not the passed in type can be converted into
+/// Determines whether or not the passed in ast type can be converted into
 /// a TaggedValue. Modify the below list to add/remove tupled types.
 pub fn can_type_be_tupled(ty: &ast::Ty) -> bool {
     // this function is very similar to ast::TyKind::maybe_scalar
     // but I'm leaving it here so that we have more control over it
-
     let ty = ty.peel_refs(); // ignore & and &mut, we care about actual type
     let Some(ty_sym) = ty.kind.is_simple_path() else {
         return false; // unit type then, which idt we need to track at all
@@ -79,6 +78,7 @@ pub fn can_type_be_tupled(ty: &ast::Ty) -> bool {
     )
 }
 
+/// Naively determines if the passed in ast type is wrapped in a TaggedValue
 pub fn is_type_tupled(ty: &ast::Ty) -> bool {
     let ty = ty.peel_refs(); // ignore & and &mut, we care about actual type
     if let ast::TyKind::Path(_, ast::Path { ref segments, .. }) = ty.kind {
@@ -88,11 +88,12 @@ pub fn is_type_tupled(ty: &ast::Ty) -> bool {
     }
 }
 
+/// Takes an ast lifetime and turns it into a regular "'name" string.
 fn get_lifetime_string(lifetime: &ast::Lifetime) -> String {
     format!("'{}", lifetime.ident.to_string())
 }
 
-/// Converts an ast Ty into the full type string,
+/// Converts an ast Ty into the full type string, recursively. 
 // NIT: i hate the way that I'm parsing strings here, feels like a lot of unnecessary format!s
 // I also think there might be a way to go from Span -> underlying text repr. would be really nice here
 pub fn get_type_string(ty_path: &ast::Ty) -> String {
@@ -211,6 +212,8 @@ pub fn get_type_string(ty_path: &ast::Ty) -> String {
     }
 }
 
+/// Parses a string `contents` into ast::Items that can then be inserted into 
+/// any crate.
 pub fn parse_items(
     psess: &ParseSess,
     contents: String,
@@ -228,16 +231,15 @@ pub fn parse_items(
     .unwrap();
 
     let mut res = Vec::new();
-
     loop {
         match parser.parse_item(ForceCollect::No) {
             Ok(Some(item)) => {
                 res.push(item);
             }
-            Ok(None) => break, // no more items
+            Ok(None) => break,  // no more items
             Err(diag) => {
                 diag.emit();
-                panic!("Failed to parse item from analysis.rs");
+                panic!("Failed to parse item!");
             }
         }
     }

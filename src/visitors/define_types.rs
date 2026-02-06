@@ -17,6 +17,9 @@ pub fn define_types_from_file(file: &std::path::Path, psess: &ParseSess, krate: 
     let code: String = std::fs::read_to_string(file).unwrap();
 
     let mut items = common::parse_items(psess, code, Some(file));
+
+    // TODO: not sure if this is realy necessary.
+    // insert "use" statements first, before all other declarations.
     items.sort_by(|a, b| match (&a.kind, &b.kind) {
         (ast::ItemKind::Use(_), ast::ItemKind::Use(_)) => std::cmp::Ordering::Equal,
         (_, ast::ItemKind::Use(_)) => std::cmp::Ordering::Less,

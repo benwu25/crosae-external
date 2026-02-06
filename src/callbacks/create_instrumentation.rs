@@ -1,3 +1,7 @@
+/* This file defines the callbacks used by the second compiler invocation,
+ * which is responsible for actually modifying the AST to include required
+ * instrumentation calls and site management.
+*/
 use rustc_ast as ast;
 use rustc_driver::Compilation;
 use rustc_interface::interface;
@@ -8,6 +12,10 @@ use crate::{
     visitors::define_types_from_file,
 };
 
+/// Callbacks struct to be passed into the compiler invocation.
+/// Notably, this pass comes after some function type information was discovered
+/// by running a different pass and querying the HIR. This information is 
+/// passed via the `fbs` field.
 pub struct InstrumentAti {
     fbs: Option<FunctionBoundaries>,
 }
@@ -18,7 +26,8 @@ impl InstrumentAti {
 }
 
 impl rustc_driver::Callbacks for InstrumentAti {
-    /// Called before creating the compiler instance
+    /// Configures the compiler invocation to use the TransformingFileLoader,
+    /// which is responsible for actually performing the necessary AST mutation.
     fn config(&mut self, config: &mut interface::Config) {
         // use our custom loader to also instrument non-root files
         // this loader will be the one responsible for adding all stubs,
@@ -28,16 +37,13 @@ impl rustc_driver::Callbacks for InstrumentAti {
         )));
     }
 
-    /// Called after parsing the crate root. Submodules are not yet parsed when
-    /// this callback is called. Return value instructs the compiler whether to
-    /// continue the compilation afterwards (defaults to `Compilation::Continue`)
+    /// Define necessary types in the root file. All other files will
+    /// import these types from the root.
     fn after_crate_root_parsing(
         &mut self,
         compiler: &interface::Compiler,
         krate: &mut ast::Crate,
     ) -> Compilation {
-        // define all used ATI types from ati.rs
-        // these type are all defined in the root file, then imported in all others
         let cwd = std::env::current_dir().unwrap();
         define_types_from_file(&cwd.join("src/ati/ati.rs"), &compiler.sess.psess, krate);
 

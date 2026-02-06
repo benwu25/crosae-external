@@ -1,3 +1,8 @@
+/* Before we can perform the required AST mutation, we need to gather 
+ * some type information about the original source code. This is done by
+ * invoking the compiler once, passing in the callback struct defined in
+ * this file, before invoking the compiler again with the mutation callbacks.
+*/
 use rustc_ast as ast;
 use rustc_driver::Compilation;
 use rustc_interface::interface;
@@ -5,7 +10,9 @@ use rustc_middle::ty::TyCtxt;
 
 use crate::{types::ati_info::FunctionBoundaries, visitors::FindUntrackedCallsVisitor};
 
+/// Contains the callbacks used for the first information-gathering compilation.
 pub struct GatherAtiInfo {
+    /// contains the information discovered after executing the compilation.
     fbs: Option<FunctionBoundaries>,
 }
 
@@ -14,7 +21,7 @@ impl GatherAtiInfo {
         Self { fbs: None }
     }
 
-    /// Pulls out all gathered info that this visitor learned over the course of it's pass.
+    /// Pulls out all gathered info that this compiler invocation learned.
     /// Panics if this function is called before the pass is performed.
     pub fn pull_function_boundaries(&mut self) -> FunctionBoundaries {
         self.fbs.take().unwrap()
@@ -22,8 +29,8 @@ impl GatherAtiInfo {
 }
 
 impl<'a> rustc_driver::Callbacks for GatherAtiInfo {
+    /// disables everything after MIR construction
     fn config(&mut self, config: &mut interface::Config) {
-        // disables everything after MIR construction
         config.opts.unstable_opts.no_codegen = true;
     }
 
@@ -35,6 +42,9 @@ impl<'a> rustc_driver::Callbacks for GatherAtiInfo {
         Compilation::Continue
     }
 
+    /// Finds all functions that require tracking, alongside
+    /// the code locations of any untracked function invocations.
+    /// Populates self.fbs with that information.
     fn after_expansion<'tcx>(
         &mut self,
         _compiler: &interface::Compiler,
