@@ -78,8 +78,6 @@ impl<'a> MutVisitor for TupleLiteralsVisitor<'a> {
 
 impl<'a> TupleLiteralsVisitor<'a> {
     pub fn new(
-        // modified_funcs: &'modfuncs HashMap<String, FnInfo>,
-        // call_spans: &'modfuncs HashMap<Span, String>,
         fbs: &'a FunctionBoundaries,
     ) -> Self {
         Self { fbs }

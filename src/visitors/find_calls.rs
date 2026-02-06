@@ -13,7 +13,8 @@ use rustc_middle::ty::TyCtxt;
 
 use crate::types::ati_info::FunctionBoundaries;
 
-/// Visitor 
+/// Visitor that finds all invocations of untracked functions, 
+/// making sure to record those locations in the contained self.fbs.
 pub struct FindUntrackedCallsVisitor<'tcx, 'a> {
     pub tcx: TyCtxt<'tcx>,
     pub fbs: &'a mut FunctionBoundaries,
