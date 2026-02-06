@@ -21,15 +21,11 @@ fn explicit_return(x: u32, y: u32, z: u32) -> u32 {
 }
 
 fn explicit_unsemi_return(x: u32, y: u32, z: u32) -> u32 {
-    return x + z
+    return x + z;
 }
 
 fn nested_implicit_return(x: u32, y: u32, z: u32) -> u32 {
-    if z < 100 {
-        x + y
-    } else {
-        x + z
-    }
+    if z < 100 { x + y } else { x + z }
 }
 
 fn nested_explicit_return(x: u32, y: u32, z: u32) -> u32 {

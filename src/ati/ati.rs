@@ -1,17 +1,17 @@
 /* Defines all types used to perform dynamic ATI. Every type in this file
  * is also defined in the instrumented code by `types.rs`.
  *
- * Key points include: 
+ * Key points include:
  * 1. `struct ATI` - A single global instance of this struct exists in the program
  *    accessible everywhere within the instrumented files, which holds the value_uf
- *    UnionFind (tracking all value interaction, globally) alongside the actual 
+ *    UnionFind (tracking all value interaction, globally) alongside the actual
  *    abstract type partition at each site. All interactions with ATI instrumentation
  *    are done by calling methods associated with this struct.
  * 2. `struct TaggedValue<T>` - a tuple of (T, Id), which implements all necessary
  *    operators on T to record interactions within the value_uf, when they happen.
- * 3. `struct Site` - A program point, created in stubs, which stores the abstract 
+ * 3. `struct Site` - A program point, created in stubs, which stores the abstract
  *    types of variables registered to it.
- * 4. `struct Sites` - Maintains a collection of program points, all the sites in the 
+ * 4. `struct Sites` - Maintains a collection of program points, all the sites in the
  *    instrumented file.
  * 5. `struct UnionFind` - A simple union find data structure, with some classic rank
  *    optimization.
@@ -355,7 +355,6 @@ where
     }
 }
 
-
 impl<T> PartialEq for TaggedValue<T>
 where
     T: Copy + PartialEq,
@@ -390,11 +389,14 @@ where
     }
 }
 
-impl<T> std::hash::Hash for TaggedValue<T> 
-where 
+impl<T> std::hash::Hash for TaggedValue<T>
+where
     T: Copy + std::hash::Hash,
 {
-    fn hash<H>(&self, hasher: &mut H) where H: std::hash::Hasher { 
+    fn hash<H>(&self, hasher: &mut H)
+    where
+        H: std::hash::Hasher,
+    {
         self.0.hash(hasher)
     }
 }
@@ -640,7 +642,7 @@ impl ATI {
         self.sites.stash(site);
     }
 
-    /// Observe two tagged values interacting together, merging them in 
+    /// Observe two tagged values interacting together, merging them in
     /// value_uf.
     pub fn union_tags<T>(&mut self, tv1: &TaggedValue<T>, tv2: &TaggedValue<T>)
     where

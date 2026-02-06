@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, process::Command};
+use std::{
+    collections::{HashMap, HashSet},
+    process::Command,
+};
 
 /// Delimiter printed at the end of execution, denoting the start of the
 /// rest of the ATI information.
@@ -12,7 +15,7 @@ const SITE_DELIM: &'static str = "---\n";
 pub fn compile_and_execute(test_dir: &str, file_name: &str) -> String {
     let invocation_dir = std::env::current_dir().unwrap();
     let full_test_dir = invocation_dir.join(test_dir);
-    let in_path = full_test_dir.join(format!("{file_name}.rs"));
+    let in_path = full_test_dir.join(format!("main.rs"));
     let out_path = full_test_dir.join(format!("{file_name}.out"));
 
     let in_file = in_path.to_str().unwrap();
@@ -20,17 +23,11 @@ pub fn compile_and_execute(test_dir: &str, file_name: &str) -> String {
 
     // Compile command
     let compile_output = Command::new("cargo")
-        .args([
-            "run",
-            "--",
-            in_file,
-            "-o",
-            out_file,
-        ])
+        .args(["run", "--", in_file, "-o", out_file])
         .output()
         .unwrap();
 
-    if !compile_output.status.success()  {
+    if !compile_output.status.success() {
         let e = String::from_utf8(compile_output.stderr).unwrap();
         panic!("Unable to compile!!! STDERR: {e}");
     }
@@ -61,7 +58,7 @@ pub fn verify(mut ati_stdout: &str, expected_partition: &HashMap<&str, HashMap<&
         let mut site_ati_output = HashMap::new();
         for var_info in &site_info[1..] {
             if var_info.len() < 3 {
-                continue
+                continue;
             }
 
             let var_split: Vec<_> = var_info.split(":").collect();
@@ -70,7 +67,10 @@ pub fn verify(mut ati_stdout: &str, expected_partition: &HashMap<&str, HashMap<&
 
         // site with name has to exist
         let expected_site = expected_partition.get(site_name);
-        assert!(expected_site.is_some(), "Did not expect {site_name} to exist.");
+        assert!(
+            expected_site.is_some(),
+            "Did not expect {site_name} to exist."
+        );
 
         let expected_site = expected_site.unwrap();
         assert!(expected_site.len() == site_ati_output.len());
@@ -85,7 +85,10 @@ pub fn verify(mut ati_stdout: &str, expected_partition: &HashMap<&str, HashMap<&
                 // it used to map to prev_expected_id, therefore, that should still be the case
                 // with this new variable
                 let expected_id = expected_site.get(var).unwrap();
-                assert!(*prev_expected_id == expected_id, "In {site_name}, expected {var} to be in set {prev_expected_id}, but found {expected_id}");
+                assert!(
+                    *prev_expected_id == expected_id,
+                    "In {site_name}, expected {var} to be in set {prev_expected_id}, but found {expected_id}"
+                );
             } else {
                 // first time seeing this, check that this variable does exist in the
                 // expected parition

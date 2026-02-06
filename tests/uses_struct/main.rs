@@ -4,10 +4,7 @@ struct MyStruct {
 }
 
 fn main() {
-    let s = MyStruct {
-        x: 1,
-        y: 2,
-    };
+    let s = MyStruct { x: 1, y: 2 };
     func(s, 10, 20, 30);
 }
 

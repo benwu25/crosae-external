@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 fn main() {
     foo(1, 2, 3);
 }
 
 fn foo(x: u32, y: u32, z: u32) -> u32 {
-    let tmp  = x + y;
+    let tmp = x + y;
 
     tmp
 }

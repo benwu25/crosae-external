@@ -1,24 +1,21 @@
 /* Defines a visitor which tags all primitives that can be tagged,
  * based on the common::can_literal_be_tupled function. Further,
- * finds uses of these values that require them to be "untupled" 
+ * finds uses of these values that require them to be "untupled"
  * within tracked functions (like when passed to an untracked function),
  * unbinding the tag from the value in that case (TaggedValue<T> -> T).
 */
-use std::collections::HashMap;
-
 use rustc_ast as ast;
 use rustc_ast::mut_visit::{self, MutVisitor};
 use rustc_span::{DUMMY_SP, Ident};
-use rustc_span::Span;
 
-use crate::instrumentation::common::{self, FnInfo};
+use crate::common;
+use crate::types::ati_info::FunctionBoundaries;
 
-pub struct TupleLiteralsVisitor<'modfuncs> {
-    modified_funcs: &'modfuncs HashMap<String, FnInfo>,
-    call_spans: &'modfuncs HashMap<Span, String>,
+pub struct TupleLiteralsVisitor<'a> {
+    fbs: &'a FunctionBoundaries,
 }
 
-impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
+impl<'a> MutVisitor for TupleLiteralsVisitor<'a> {
     /// Converts all literals into TaggedValue<T>'s
     /// while making sure those values are correctly passed
     /// between the tracked/untracked boundary.
@@ -37,31 +34,23 @@ impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
             // to use the un-tupled values, then bringing the return
             // back into a TaggedValue
             ast::ExprKind::Call(ref func, ref mut args) => {
-                if let ast::ExprKind::Path(None, path) = &func.kind {
-                    // TODO: not sure if this works with complex function invocations
-                    // that involve use statements and renames. might have to construct
-                    // down paths from crate::. Temporary workaround below,
-                    // probably need to change it later.
+                if let ast::ExprKind::Path(_, _) = &func.kind {
+                    if let Some(ret_ty) = self.fbs.get_untracked_fn_call_ret_ty(&func.span) {
+                        // TODO: what if a vec is supposed to store a tracked value?
+                        // the Vec.push operation is an "untracked" function, but we DO
+                        // want to pass in a TaggedValue to it?
+                        for arg_expr in args.iter_mut() {
+                            arg_expr.kind = self.unbind_tupled_expr(arg_expr);
+                        }
 
-                    // TODO: Another problem, we have no way of knowing what type of 
-                    // value an untracked function will return. If it returns a basic type,
-                    // then it can be tupled as normal, but what if it returns a complex
-                    // type? a struct? a vec?
-                    // Further, what if a vec is supposed to store a tracked value?
-                    // the Vec.push operation is an "untracked" function, but we DO 
-                    // want to pass in a TaggedValue to it?
-                    if let Some(last_segment) = path.segments.last() {
-                        if !self
-                            .modified_funcs
-                            .contains_key(last_segment.ident.as_str())
-                        {
-                            for arg_expr in args.iter_mut() {
-                                arg_expr.kind = self.unbind_tupled_expr(arg_expr);
-                            }
-
-                            if !self.call_spans.contains_key(&func.span) {
-                                *expr = self.tupleify_expr(expr);
-                            }
+                        // at this point, we need to make a decision about
+                        // what values are moved back into our "tracking" context.
+                        // references can refer to memory anywhere -> no guarantees of
+                        // the returned reference to be "our code".
+                        // owned values are safe to move in?
+                        // TODO: use ret_ty to resolve ^
+                        if common::can_type_string_be_tupled(ret_ty) {
+                            *expr = self.tupleify_expr(expr);
                         }
                     }
                 }
@@ -70,6 +59,7 @@ impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
             // WIP: with above TODOs regarding collections
             // need to untuple to allow us to actually index slices, vectors, etc
             // could this be done by overriding the index operator?
+            // this works but I find myself squinting at it....
             ast::ExprKind::Index(_, ref mut index_expr, _) => {
                 index_expr.kind = self.unbind_tupled_expr(index_expr)
             }
@@ -78,8 +68,7 @@ impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
             ast::ExprKind::MacCall(box ast::MacCall {
                 ref mut path,
                 ref mut args,
-            }) => {
-            }
+            }) => {}
 
             // TODO: handle method calls?
             _ => {}
@@ -87,9 +76,13 @@ impl<'modfuncs> MutVisitor for TupleLiteralsVisitor<'modfuncs> {
     }
 }
 
-impl<'modfuncs> TupleLiteralsVisitor<'modfuncs> {
-    pub fn new(modified_funcs: &'modfuncs HashMap<String, FnInfo>, call_spans: &'modfuncs HashMap<Span, String>) -> Self {
-        Self { modified_funcs, call_spans }
+impl<'a> TupleLiteralsVisitor<'a> {
+    pub fn new(
+        // modified_funcs: &'modfuncs HashMap<String, FnInfo>,
+        // call_spans: &'modfuncs HashMap<Span, String>,
+        fbs: &'a FunctionBoundaries,
+    ) -> Self {
+        Self { fbs }
     }
 
     /// Takes an expression of type T and converts it to an expression of TaggedValue<T>,
@@ -135,9 +128,6 @@ impl<'modfuncs> TupleLiteralsVisitor<'modfuncs> {
     /// Takes a TaggedValue<T> expression and unwraps it to just T,
     /// by accessing the TaggedValue's 0'th field.
     fn unbind_tupled_expr(&self, expr: &mut ast::Expr) -> ast::ExprKind {
-        ast::ExprKind::Field(
-            Box::new(expr.clone()),
-            Ident::from_str("0"),
-        )
+        ast::ExprKind::Field(Box::new(expr.clone()), Ident::from_str("0"))
     }
 }
