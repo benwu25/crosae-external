@@ -1,6 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
-    process::Command,
+    collections::{HashMap, HashSet}, path::Path, process::Command
 };
 
 /// Delimiter printed at the end of execution, denoting the start of the
@@ -12,18 +11,15 @@ const SITE_DELIM: &'static str = "---\n";
 
 /// Compiles `{cwd}/{test_dir}/{file_name}.rs` with the added instrumentation
 /// runs it, and returns the section of the stdout stream which contains the ATI info.
-pub fn compile_and_execute(test_dir: &str, file_name: &str) -> String {
+pub fn compile_and_execute(path: &Path) -> String {
     let invocation_dir = std::env::current_dir().unwrap();
-    let full_test_dir = invocation_dir.join(test_dir);
-    let in_path = full_test_dir.join(format!("main.rs"));
-    let out_path = full_test_dir.join(format!("{file_name}.out"));
-
-    let in_file = in_path.to_str().unwrap();
-    let out_file = out_path.to_str().unwrap();
+    let full_executable = invocation_dir.join(path);
+    let source = full_executable.parent().unwrap().join("main.rs");
+    println!("source: {:?}", source);
 
     // Compile command
     let compile_output = Command::new("cargo")
-        .args(["run", "--", in_file, "-o", out_file])
+        .args(["run", "--", source.to_str().unwrap(), "-o", full_executable.to_str().unwrap()])
         .output()
         .unwrap();
 
@@ -33,7 +29,7 @@ pub fn compile_and_execute(test_dir: &str, file_name: &str) -> String {
     }
 
     // Execute command
-    let analysis_output = Command::new(out_file).output().unwrap();
+    let analysis_output = Command::new(full_executable).output().unwrap();
     let exec_output = String::from(str::from_utf8(&analysis_output.stdout).unwrap());
 
     // chop off all print statements that have nothing to do with ATI
@@ -109,4 +105,11 @@ pub fn verify(mut ati_stdout: &str, expected_partition: &HashMap<&str, HashMap<&
     // to match all found_sites to those in expected_partition,
     // we have equality!
     assert!(found_sites.len() == expected_partition.len());
+}
+
+pub fn delete(exec: &Path) {
+    match std::fs::remove_file(exec) {
+        Ok(_) => {},
+        Err(_) => println!("Unable to remove old file."),
+    }
 }

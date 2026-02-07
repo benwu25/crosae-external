@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use crate::common::{compile_and_execute, verify};
+use crate::common::{compile_and_execute, delete, verify};
 
 #[test]
 fn untracked_fns() {
@@ -32,7 +32,9 @@ fn untracked_fns() {
         ("RET", 0)
     ]));
 
-    let test_dir = Path::new(file!()).parent().unwrap().to_str().unwrap();
-    let ati_output = compile_and_execute(test_dir, "untracked_fns");
+    let executable = Path::new(file!()).parent().unwrap().join("untracked_fns.out");
+    delete(&executable);
+
+    let ati_output = compile_and_execute(&executable);
     verify(&ati_output, &expected);
 }

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use crate::common::{compile_and_execute, verify};
+use crate::common::{compile_and_execute, verify, delete};
 
 #[test]
 fn simple() {
@@ -13,7 +13,9 @@ fn simple() {
         HashMap::from([("x", 0), ("y", 0), ("z", 1), ("RET", 0)]),
     );
 
-    let test_dir = Path::new(file!()).parent().unwrap().to_str().unwrap();
-    let ati_output = compile_and_execute(test_dir, "input");
+    let executable = Path::new(file!()).parent().unwrap().join("simple.out");
+    delete(&executable);
+
+    let ati_output = compile_and_execute(&executable);
     verify(&ati_output, &expected);
 }

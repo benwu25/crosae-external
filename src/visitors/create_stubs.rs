@@ -18,11 +18,9 @@ fn create_site_binds<'a>(
     inputs
         .filter(|(_, is_tupled, _)| *is_tupled)
         .map(|(name, _, _)| {
-            format!(
-                r#"
-            {site_name}.bind("{name}", {name});
-        "#
-            )
+            format!(r#"
+                {site_name}.bind("{name}", {name});
+            "#)
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -55,8 +53,7 @@ fn create_fn_stub(
     if fn_name == "main" {
         // TODO: environment stuff for main
         // this is kind of a silly stub for now...
-        format!(
-            r#"
+        format!(r#"
             pub fn main() {{
                 let mut site_enter = ATI_ANALYSIS.lock().unwrap().get_site("main::ENTER");
                 ATI_ANALYSIS.lock().unwrap().update_site(site_enter);
@@ -68,8 +65,7 @@ fn create_fn_stub(
 
                 ATI_ANALYSIS.lock().unwrap().report();
             }}
-        "#
-        )
+        "#)
     } else if let Some(ret) = output {
         // with a return value
         format!(

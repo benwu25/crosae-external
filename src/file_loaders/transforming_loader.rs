@@ -94,9 +94,8 @@ impl TransformingFileLoader {
         let fn_sigs = fn_decls_vis.get_new_fn_signatures();
         create_stubs(&mut krate, &psess, &fn_sigs);
 
-        // if we are processing a dependancy file, make the ATI types available
-        // to it from the root.
-        if !matches!(file_type, FileType::Root) {
+        // make the ATI types available to dependancies
+        if matches!(file_type, FileType::Dep) {
             import_root_crate(&mut krate, &psess);
         }
 
@@ -139,6 +138,7 @@ impl TransformingFileLoader {
             FileType::Untracked
         } else if path_str.ends_with("main.rs") || path_str.ends_with("lib.rs") {
             // TODO: how do we know a file is the root based off the path?
+            // as in, calling rustc <file> makes <file> the root, regardless of name.
             // do we need to use an ENV var or something? does rustc happen to set one?
             FileType::Root
         } else {

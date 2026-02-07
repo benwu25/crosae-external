@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use crate::common::{compile_and_execute, verify};
+use crate::common::{compile_and_execute, delete, verify};
 
 #[test]
 fn collections() {
@@ -14,7 +14,13 @@ fn collections() {
     expected.insert("baz::ENTER", HashMap::from([("a", 0), ("b", 1)]));
     expected.insert("baz::EXIT", HashMap::from([("a", 0), ("b", 0)]));
 
-    let test_dir = Path::new(file!()).parent().unwrap().to_str().unwrap();
-    let ati_output = compile_and_execute(test_dir, "collections");
+    let executable = Path::new(file!()).parent().unwrap().join("collections.out");
+    delete(&executable);
+
+    let ati_output = compile_and_execute(&executable);
     verify(&ati_output, &expected);
 }
+
+// TODO:
+// 1. Delete files at start of each test
+// 2. Fix unit tests not always running.
