@@ -1,21 +1,35 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
-use crate::common::{compile_and_execute, delete, verify};
+use crate::common::{ExpectedOutput, ExpectedSite, compile_and_execute, delete, verify};
 
 #[test]
 fn uses_struct() {
-    let mut expected = HashMap::new();
-    expected.insert("main::ENTER", HashMap::new());
-    expected.insert("main::EXIT", HashMap::new());
-    expected.insert("func::ENTER", HashMap::from([("x", 0), ("y", 1), ("z", 2)]));
-    expected.insert(
-        "func::EXIT",
-        HashMap::from([("x", 0), ("y", 0), ("z", 1), ("RET", 0)]),
+    let mut expected = ExpectedOutput::new();
+    expected.register_site(ExpectedSite::new("main::ENTER"));
+    expected.register_site(ExpectedSite::new("main::EXIT"));
+    expected.register_site(
+        ExpectedSite::new("func::ENTER")
+            .register("x", 0)
+            .register("y", 1)
+            .register("z", 2)
+            .register("s.x", 3)
+            .register("s.y", 4)
+            .register("s.z.x", 5)
+    );
+    expected.register_site(
+        ExpectedSite::new("func::EXIT")
+            .register("x", 0)
+            .register("y", 0)
+            .register("z", 1)
+            .register("s.x", 0)
+            .register("s.y", 0)
+            .register("s.z.x", 2)
+            .register("RET", 0),
     );
 
     let executable = Path::new(file!()).parent().unwrap().join("struct.out");
     delete(&executable);
 
     let ati_output = compile_and_execute(&executable);
-    verify(&ati_output, &expected);
+    verify(&ati_output, expected.inner());
 }

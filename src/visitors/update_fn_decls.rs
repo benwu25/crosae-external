@@ -20,11 +20,11 @@ impl<'a> MutVisitor for UpdateFnDeclsVisitor<'a> {
     /// to thier tagged variants. Specifically modifies all parameter types to
     /// be TaggedValues if necessary, alongside returns.
     fn visit_item(&mut self, item: &mut ast::Item) {
-        match item.kind {
+        match &mut item.kind {
             // Tags all input and return types that can be tupled in fn sigs
             ast::ItemKind::Fn(box ast::Fn {
-                ref mut ident,
-                sig: ast::FnSig { ref mut decl, .. },
+                ident,
+                sig: ast::FnSig { decl, .. },
                 ..
             }) => {
                 if !self.fbs.is_fn_ident_tracked(ident) {
@@ -32,32 +32,28 @@ impl<'a> MutVisitor for UpdateFnDeclsVisitor<'a> {
                     return;
                 }
 
-                let inputs = decl
-                    .inputs
-                    .iter_mut()
-                    .map(|param| {
-                        // adds a TaggedValue<*> around all taggable types, recursively
-                        self.recursively_tuple_type(&mut param.ty);
-                        param
-                    })
-                    .collect::<Vec<_>>();
+                // adds a TaggedValue<*> around all taggable types, recursively
+                for param in &mut decl.inputs {
+                    self.recursively_tuple_type(&mut param.ty);
+                }
 
                 // we know this function is tracked, at some point, it will need a stub made
                 // which requires knowledge of it's name, inputs, and outputs. Record all that info
                 let orig_ident = ident.as_str();
-                if let ast::FnRetTy::Ty(ref mut return_type) = decl.output {
+                if let ast::FnRetTy::Ty(return_type) = &mut decl.output {
                     // do the recursive wrapping to the return type if one exists
                     self.recursively_tuple_type(return_type);
                     self.fn_sigs.as_mut().unwrap().register_fn_sig(
                         &orig_ident,
-                        inputs,
+                        decl.inputs.iter().collect(),
                         Some(return_type),
                     );
                 } else {
-                    self.fn_sigs
-                        .as_mut()
-                        .unwrap()
-                        .register_fn_sig(&orig_ident, inputs, None);
+                    self.fn_sigs.as_mut().unwrap().register_fn_sig(
+                        &orig_ident,
+                        decl.inputs.iter().collect(),
+                        None,
+                    );
                 }
 
                 // rename the function to be *_unstubbed so the stub can call it
@@ -65,10 +61,16 @@ impl<'a> MutVisitor for UpdateFnDeclsVisitor<'a> {
             }
 
             // Tags all values in struct defs that can be tupled
-            ast::ItemKind::Struct(_, _, ast::VariantData::Struct { ref mut fields, .. }) => {
-                for field_def in fields {
+            // FIXME: generics????
+            ast::ItemKind::Struct(ident, generics, ast::VariantData::Struct { fields, .. }) => {
+                for field_def in fields.iter_mut() {
                     self.recursively_tuple_type(&mut field_def.ty);
                 }
+
+                self.fn_sigs
+                    .as_mut()
+                    .unwrap()
+                    .register_struct_def(ident.as_str(), fields.iter().collect());
             }
 
             // TODO: method defs in impl blocks?
@@ -224,21 +226,21 @@ impl<'a> UpdateFnDeclsVisitor<'a> {
             }
 
             // maybe impl later
-            rustc_ast::TyKind::PinnedRef(lifetime, mut_ty) => todo!(),
-            rustc_ast::TyKind::Pat(ty, ty_pat) => todo!(),
+            rustc_ast::TyKind::PinnedRef(_, _) => todo!(),
+            rustc_ast::TyKind::Pat(_, _) => todo!(),
 
             // probably left untouched
             rustc_ast::TyKind::Infer => panic!(),
-            rustc_ast::TyKind::TraitObject(generic_bounds, trait_object_syntax) => panic!(),
-            rustc_ast::TyKind::Paren(ty) => panic!(),
-            rustc_ast::TyKind::UnsafeBinder(unsafe_binder_ty) => panic!(),
+            rustc_ast::TyKind::TraitObject(_, _) => panic!(),
+            rustc_ast::TyKind::Paren(_) => panic!(),
+            rustc_ast::TyKind::UnsafeBinder(_) => panic!(),
             rustc_ast::TyKind::Never => panic!(),
-            rustc_ast::TyKind::ImplTrait(node_id, generic_bounds) => panic!(),
+            rustc_ast::TyKind::ImplTrait(_, _) => panic!(),
             rustc_ast::TyKind::ImplicitSelf => panic!(),
-            rustc_ast::TyKind::MacCall(mac_call) => panic!(),
+            rustc_ast::TyKind::MacCall(_) => panic!(),
             rustc_ast::TyKind::CVarArgs => panic!(),
             rustc_ast::TyKind::Dummy => panic!(),
-            rustc_ast::TyKind::Err(error_guaranteed) => panic!(),
+            rustc_ast::TyKind::Err(_) => panic!(),
         };
     }
 }

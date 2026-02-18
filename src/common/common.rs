@@ -5,10 +5,10 @@
 use rustc_ast::token::{Lit, LitKind};
 use rustc_ast::{self as ast};
 use rustc_parse::lexer::StripTokens;
+use rustc_parse::new_parser_from_source_str;
 use rustc_parse::parser::ForceCollect;
 use rustc_session::parse::ParseSess;
 use rustc_span::{FileName, RealFileName, sym};
-use rustc_parse::new_parser_from_source_str;
 
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub fn peel_refs(ty: &mut ast::Ty) -> &mut ast::Ty {
     final_ty
 }
 
-/// Determines if this type string (like "u32", or "Vec<u32>") can be tupled. 
+/// Determines if this type string (like "u32", or "Vec<u32>") can be tupled.
 /// Currently does this naively, only numeric primitives are allowed to be tupled.
 // TODO: refine this function, it would be nice to not use strings
 // for this use case at all, and instead mir::Tys. mir::Tys are interned though,
@@ -79,12 +79,39 @@ pub fn can_type_be_tupled(ty: &ast::Ty) -> bool {
 }
 
 /// Naively determines if the passed in ast type is wrapped in a TaggedValue
+/// at the top level.
 pub fn is_type_tupled(ty: &ast::Ty) -> bool {
     let ty = ty.peel_refs(); // ignore & and &mut, we care about actual type
-    if let ast::TyKind::Path(_, ast::Path { ref segments, .. }) = ty.kind {
-        segments[0].ident.as_str() == "TaggedValue"
-    } else {
-        false
+    match &ty.kind {
+        rustc_ast::TyKind::Path(_, ast::Path { segments, .. }) => {
+            segments
+                .iter()
+                .last()
+                .expect("Unable to find last struct ident in type")
+                .ident
+                .as_str()
+                == "TaggedValue"
+        }
+
+        rustc_ast::TyKind::Array(ty, _) => is_type_tupled(ty),
+
+        _ => false, // rustc_ast::TyKind::Slice(ty) => todo!(),
+                    // rustc_ast::TyKind::Ptr(mut_ty) => todo!(),
+                    // rustc_ast::TyKind::Ref(lifetime, mut_ty) => todo!(),
+                    // rustc_ast::TyKind::PinnedRef(lifetime, mut_ty) => todo!(),
+                    // rustc_ast::TyKind::FnPtr(fn_ptr_ty) => todo!(),
+                    // rustc_ast::TyKind::UnsafeBinder(unsafe_binder_ty) => todo!(),
+                    // rustc_ast::TyKind::Never => todo!(),
+                    // rustc_ast::TyKind::TraitObject(generic_bounds, trait_object_syntax) => todo!(),
+                    // rustc_ast::TyKind::ImplTrait(node_id, generic_bounds) => todo!(),
+                    // rustc_ast::TyKind::Paren(ty) => todo!(),
+                    // rustc_ast::TyKind::Infer => todo!(),
+                    // rustc_ast::TyKind::ImplicitSelf => todo!(),
+                    // rustc_ast::TyKind::MacCall(mac_call) => todo!(),
+                    // rustc_ast::TyKind::CVarArgs => todo!(),
+                    // rustc_ast::TyKind::Pat(ty, ty_pat) => todo!(),
+                    // rustc_ast::TyKind::Dummy => todo!(),
+                    // rustc_ast::TyKind::Err(error_guaranteed) => todo!(),
     }
 }
 
@@ -93,7 +120,7 @@ fn get_lifetime_string(lifetime: &ast::Lifetime) -> String {
     format!("'{}", lifetime.ident.to_string())
 }
 
-/// Converts an ast Ty into the full type string, recursively. 
+/// Converts an ast Ty into the full type string, recursively.
 // NIT: i hate the way that I'm parsing strings here, feels like a lot of unnecessary format!s
 // I also think there might be a way to go from Span -> underlying text repr. would be really nice here
 pub fn get_type_string(ty_path: &ast::Ty) -> String {
@@ -125,7 +152,7 @@ pub fn get_type_string(ty_path: &ast::Ty) -> String {
             path.segments.iter().map(|segment| {
                 let ident_str = segment.ident.to_string();
 
-                // these are the <Generic, Args>  passed in
+                // these are the <Generic, Args> passed in to this segment
                 let generics_str = if let Some(box generics) = &segment.args {
                     match generics {
                         ast::GenericArgs::AngleBracketed(ast::AngleBracketedArgs{
@@ -187,6 +214,33 @@ pub fn get_type_string(ty_path: &ast::Ty) -> String {
             }).collect::<Vec<_>>().join("::")
         },
 
+        rustc_ast::TyKind::Array(box ty, ast::AnonConst {
+            value: box ast::Expr {
+                kind: ast::ExprKind::Lit(ast::token::Lit {
+                    symbol,
+                    ..
+                }),
+                ..
+            },
+            ..
+        }) => {
+            let inner = get_type_string(ty);
+            let constant = symbol.as_str();
+
+            let res = format!("[{inner}; {constant}]");
+            // panic!("{res:?}");
+            res
+        },
+
+        rustc_ast::TyKind::Array(box ty, ast::AnonConst {
+            value,
+            ..
+        }) => {
+            // panic!("Found array with non-literal size:\n{ty:#?}\n{value:#?}");
+            "[ARRAY]".into()
+        },
+
+        // this should be impossible, for now error out
         rustc_ast::TyKind::ImplicitSelf |  // def necessary at some point
         rustc_ast::TyKind::MacCall(_) |
         rustc_ast::TyKind::CVarArgs |
@@ -200,7 +254,6 @@ pub fn get_type_string(ty_path: &ast::Ty) -> String {
         rustc_ast::TyKind::UnsafeBinder(_) |
         rustc_ast::TyKind::FnPtr(_) |
         rustc_ast::TyKind::PinnedRef(_, _) |
-        rustc_ast::TyKind::Array(_, _) |
         rustc_ast::TyKind::Ptr(_) => {
             todo!("I still don't really know what to do with these types");
             // they are either weird to include for the current use case, or just won't be supported
@@ -212,14 +265,12 @@ pub fn get_type_string(ty_path: &ast::Ty) -> String {
     }
 }
 
-/// Parses a string `contents` into ast::Items that can then be inserted into 
-/// any crate.
-pub fn parse_items(
-    psess: &ParseSess,
+fn create_parser<'a>(
+    psess: &'a ParseSess,
     contents: String,
     file_path: Option<&Path>,
-) -> Vec<Box<ast::Item>> {
-    let mut parser = new_parser_from_source_str(
+) -> rustc_parse::parser::Parser<'a> {
+    new_parser_from_source_str(
         psess,
         match file_path {
             Some(path) => FileName::Real(RealFileName::from_virtual_path(path)),
@@ -228,7 +279,17 @@ pub fn parse_items(
         contents,
         StripTokens::Nothing,
     )
-    .unwrap();
+    .unwrap()
+}
+
+/// Parses a string `contents` into a vector of ast::Items that can then be inserted into
+/// any crate.
+pub fn parse_items(
+    psess: &ParseSess,
+    contents: String,
+    file_path: Option<&Path>,
+) -> Vec<Box<ast::Item>> {
+    let mut parser = create_parser(psess, contents, file_path);
 
     let mut res = Vec::new();
     loop {
@@ -236,7 +297,7 @@ pub fn parse_items(
             Ok(Some(item)) => {
                 res.push(item);
             }
-            Ok(None) => break,  // no more items
+            Ok(None) => break, // no more items
             Err(diag) => {
                 diag.emit();
                 panic!("Failed to parse item!");
@@ -245,4 +306,16 @@ pub fn parse_items(
     }
 
     res
+}
+
+pub fn parse_crate(psess: &ParseSess, contents: String, file_path: Option<&Path>) -> ast::Crate {
+    let mut parser = create_parser(psess, contents, file_path);
+
+    match parser.parse_crate_mod() {
+        Ok(krate) => krate,
+        Err(diag) => {
+            diag.emit();
+            panic!("Failed to parse crate!")
+        }
+    }
 }

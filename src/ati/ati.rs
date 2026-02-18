@@ -432,12 +432,11 @@ impl Site {
     /// 1. let x = 10;
     /// 2. let x = site.bind("x", TaggedValue<10>)
     /// ```
-    pub fn bind<T>(&mut self, var_name: &str, tv: TaggedValue<T>) -> TaggedValue<T>
+    pub fn bind<T>(&mut self, var_name: &str, tv: &TaggedValue<T>)
     where
         T: Copy,
     {
         self.observed_var_tags.push((var_name.into(), tv.1));
-        tv
     }
 
     /// Algorithm from paper, updates ATI information based on observed_vars
@@ -459,7 +458,7 @@ impl Site {
             }
         }
 
-        self.observed_var_tags.clear(); // done merging these vars in!
+        // self.observed_var_tags.clear(); // done merging these vars in!
     }
 
     /// Produces ATI output, called at the end of main.

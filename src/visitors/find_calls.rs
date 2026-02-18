@@ -1,7 +1,7 @@
 /* This file defines a visitor which can be used to discover the code locations
- * where untracked function calls are being made. For each call location, we will also 
+ * where untracked function calls are being made. For each call location, we will also
  * store information about the returned type, to later make decisions about whether
- * to bring the return values into our "tracked" context. After performing the visitor 
+ * to bring the return values into our "tracked" context. After performing the visitor
  * pass, self.fbs will be mutated to include all of this information.
 */
 
@@ -13,7 +13,7 @@ use rustc_middle::ty::TyCtxt;
 
 use crate::types::ati_info::FunctionBoundaries;
 
-/// Visitor that finds all invocations of untracked functions, 
+/// Visitor that finds all invocations of untracked functions,
 /// making sure to record those locations in the contained self.fbs.
 pub struct FindUntrackedCallsVisitor<'tcx, 'a> {
     pub tcx: TyCtxt<'tcx>,
@@ -23,7 +23,7 @@ pub struct FindUntrackedCallsVisitor<'tcx, 'a> {
 impl<'tcx, 'a> Visitor<'tcx> for FindUntrackedCallsVisitor<'tcx, 'a> {
     type NestedFilter = nested_filter::All;
 
-    /// Combined with above NestedFilter, defines how the visitor 
+    /// Combined with above NestedFilter, defines how the visitor
     /// is going to traverse the tree. This configuration will have
     /// this visitor visit all nested expressions.
     fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
@@ -36,25 +36,53 @@ impl<'tcx, 'a> Visitor<'tcx> for FindUntrackedCallsVisitor<'tcx, 'a> {
             // we've found a call to a function...
             hir::ExprKind::Call(func, _args) => {
                 if let hir::ExprKind::Path(ref qpath) = func.kind {
-                    // ... the function is a user defined function
                     let ldid = expr.hir_id.owner.def_id;
 
                     let typeck = self.tcx.typeck(ldid);
                     if let Res::Def(_kind, def_id) = typeck.qpath_res(qpath, func.hir_id) {
-                        // ... we have type information for it
+                        // ... and we have type information for it, with a def
                         if !self.fbs.is_fn_def_id_tracked(&def_id) {
-                            // .. and the user defined function is untracked.
+                            // .. and the function is untracked.
 
                             // this function call might need to have it's inputs
                             // untupled, and it's output tupled, depending on the type signature.
                             // store all this information in FunctionBoundaries.
                             let span = func.span;
-                            let ret_ty = typeck.expr_ty_opt(expr).unwrap();
+                            let ret_ty = typeck.expr_ty(expr);
                             self.fbs.observe_untracked_fn_call(span, ret_ty);
                         }
                     }
+                } else {
+                    // TODO: could an instrumented call have a non-path kind?
                 }
             }
+
+            // hir::ExprKind::Path(hir::QPath::Resolved(_, hir::Path {
+            //     span,
+            //     res,
+            //     segments,
+            // })) => {
+            //     match res {
+            //         Res::Local(hir_id) => {
+            //             let ldid = hir_id.owner.def_id;
+            //             let typeck = self.tcx.typeck(ldid);
+            //             // typeck.
+
+            //             // if let Res::Def(_kind, def_id) = typeck.res
+            //             // self.tcx.typeck(hir_id);
+            //             let def_id = self.tcx.typeck_root_def_id(ldid.to_def_id());
+            //         },
+
+            //         Res::Def(def_kind, def_id) => todo!(),
+            //         Res::PrimTy(prim_ty) => todo!(),
+            //         Res::SelfTyParam { trait_ } => todo!(),
+            //         Res::SelfTyAlias { alias_to, is_trait_impl } => todo!(),
+            //         Res::SelfCtor(def_id) => todo!(),
+            //         Res::ToolMod => todo!(),
+            //         Res::NonMacroAttr(non_macro_attr_kind) => todo!(),
+            //         Res::Err => todo!(),
+            //     }
+            // }
 
             _ => {}
         }

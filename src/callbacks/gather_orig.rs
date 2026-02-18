@@ -1,4 +1,4 @@
-/* Before we can perform the required AST mutation, we need to gather 
+/* Before we can perform the required AST mutation, we need to gather
  * some type information about the original source code. This is done by
  * invoking the compiler once, passing in the callback struct defined in
  * this file, before invoking the compiler again with the mutation callbacks.
@@ -62,8 +62,12 @@ impl<'a> rustc_driver::Callbacks for GatherAtiInfo {
             }) = node
             {
                 fbs.observe_tracked_fn(&ident, local_def_id.to_def_id());
+            } else if let rustc_hir::Node::AnonConst(anon_const) = node {
+                // chill to just ignore?
             } else {
-                panic!("Found body owner that isn't a function while discovering ATI info")
+                panic!(
+                    "Found body owner that isn't a function while discovering ATI info: {node:#?}"
+                )
             }
         }
 

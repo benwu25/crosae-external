@@ -2,40 +2,30 @@ use std::path::Path;
 
 use crate::common::{ExpectedOutput, ExpectedSite, compile_and_execute, delete, verify};
 
-// TODO: probably a good idea to make sites qualify the file name they are in too
 #[test]
-fn multi_file() {
+fn array() {
     let mut expected = ExpectedOutput::new();
+
     expected.register_site(ExpectedSite::new("main::ENTER"));
     expected.register_site(ExpectedSite::new("main::EXIT"));
+
     expected.register_site(
         ExpectedSite::new("foo::ENTER")
             .register("x", 0)
             .register("y", 1)
-            .register("z", 2),
+            .register("z", 2)
+            .register_array("arr", 3, 3),
     );
     expected.register_site(
         ExpectedSite::new("foo::EXIT")
+            .register_array("arr", 3, 0)
             .register("x", 0)
             .register("y", 0)
             .register("z", 1)
             .register("RET", 0),
     );
-    expected.register_site(
-        ExpectedSite::new("from_dep::ENTER")
-            .register("x", 0)
-            .register("y", 1)
-            .register("z", 2),
-    );
-    expected.register_site(
-        ExpectedSite::new("from_dep::EXIT")
-            .register("x", 0)
-            .register("y", 1)
-            .register("z", 1)
-            .register("RET", 1),
-    );
 
-    let executable = Path::new(file!()).parent().unwrap().join("multi_file.out");
+    let executable = Path::new(file!()).parent().unwrap().join("array.out");
     delete(&executable);
 
     let ati_output = compile_and_execute(&executable);

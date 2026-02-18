@@ -1,5 +1,8 @@
+#![allow(unused)]
+
+#[ignore]
 fn main() {
-    // these type hints need to be replaced with correct 
+    // these type hints need to be replaced with correct
     // values during mutating pass, otherwise compilation will
     // fail
     let x: u32 = 10;

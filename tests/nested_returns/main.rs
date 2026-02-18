@@ -1,3 +1,6 @@
+#![allow(unused)]
+
+#[ignore]
 fn main() {
     implicit_return(1, 2, 3);
     explicit_return(10, 20, 30);

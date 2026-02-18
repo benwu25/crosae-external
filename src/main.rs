@@ -26,14 +26,14 @@ mod file_loaders;
 mod types;
 mod visitors;
 
-/// Entry-point, forwards all arguments command line arguments to rustc_driver
+/// Entry-point, forwards all command-line arguments to rustc_driver
 pub fn main() {
     let args: Vec<_> = env::args().collect();
 
-    let mut gather_info_vis = callbacks::gather_orig::GatherAtiInfo::new();
-    rustc_driver::run_compiler(&args, &mut gather_info_vis);  // panics on compilation failure
+    let mut gather_info = callbacks::gather_orig::GatherAtiInfo::new();
+    rustc_driver::run_compiler(&args, &mut gather_info); // panics on compilation failure
+    let fbs = gather_info.pull_function_boundaries();
 
-    let fbs = gather_info_vis.pull_function_boundaries();
     let mut instr = callbacks::create_instrumentation::InstrumentAti::new(fbs);
     rustc_driver::run_compiler(&args, &mut instr);
 }

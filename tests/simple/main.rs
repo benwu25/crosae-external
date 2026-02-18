@@ -1,3 +1,6 @@
+#![allow(unused)]
+
+#[ignore]
 fn main() {
     foo(1, 2, 3);
 }

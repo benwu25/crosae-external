@@ -1,10 +1,19 @@
+#![allow(unused)]
+
+struct Inner {
+    x: f64,
+    y: bool,
+}
+
 struct MyStruct {
     x: u32,
     y: u32,
+    z: Inner,
 }
 
+#[ignore]
 fn main() {
-    let s = MyStruct { x: 1, y: 2 };
+    let s = MyStruct { x: 1, y: 2, z: Inner { x: 3.0, y: true } };
     func(s, 10, 20, 30);
 }
 

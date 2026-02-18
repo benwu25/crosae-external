@@ -16,13 +16,17 @@ pub struct TupleLiteralsVisitor<'a> {
 }
 
 impl<'a> MutVisitor for TupleLiteralsVisitor<'a> {
+    // define to stop visitor from modifying any expressions used as types
+    fn visit_param(&mut self, node: &mut ast::Param) {}
+    fn visit_anon_const(&mut self, node: &mut rustc_ast::AnonConst) {}
+
     /// Converts all literals into TaggedValue<T>'s
     /// while making sure those values are correctly passed
     /// between the tracked/untracked boundary.
     fn visit_expr(&mut self, expr: &mut ast::Expr) {
         mut_visit::walk_expr(self, expr);
 
-        match expr.kind {
+        match &mut expr.kind {
             // Convert all literals into TaggedValues, if necessary
             ast::ExprKind::Lit(lit) => {
                 if common::can_literal_be_tupled(&lit) {
@@ -33,7 +37,7 @@ impl<'a> MutVisitor for TupleLiteralsVisitor<'a> {
             // Convert all invocations of untracked functions
             // to use the un-tupled values, then bringing the return
             // back into a TaggedValue
-            ast::ExprKind::Call(ref func, ref mut args) => {
+            ast::ExprKind::Call(func, args) => {
                 if let ast::ExprKind::Path(_, _) = &func.kind {
                     if let Some(ret_ty) = self.fbs.get_untracked_fn_call_ret_ty(&func.span) {
                         // TODO: what if a vec is supposed to store a tracked value?
@@ -60,15 +64,22 @@ impl<'a> MutVisitor for TupleLiteralsVisitor<'a> {
             // need to untuple to allow us to actually index slices, vectors, etc
             // could this be done by overriding the index operator?
             // this works but I find myself squinting at it....
-            ast::ExprKind::Index(_, ref mut index_expr, _) => {
+            ast::ExprKind::Index(_, index_expr, _) => {
                 index_expr.kind = self.unbind_tupled_expr(index_expr)
             }
 
             // TODO: handle macro invocationss similar to Call
-            ast::ExprKind::MacCall(box ast::MacCall {
-                ref mut path,
-                ref mut args,
-            }) => {}
+            ast::ExprKind::MacCall(box ast::MacCall { path, args }) => {}
+
+            ast::ExprKind::MethodCall(box ast::MethodCall {
+                seg,
+                receiver,
+                args,
+                span,
+            }) => {
+                // self.unbind_tupled_expr(expr)
+                // span: tests/multi_file/main.rs:15:19: 15:20 (#0),
+            }
 
             // TODO: handle method calls?
             _ => {}
@@ -77,9 +88,7 @@ impl<'a> MutVisitor for TupleLiteralsVisitor<'a> {
 }
 
 impl<'a> TupleLiteralsVisitor<'a> {
-    pub fn new(
-        fbs: &'a FunctionBoundaries,
-    ) -> Self {
+    pub fn new(fbs: &'a FunctionBoundaries) -> Self {
         Self { fbs }
     }
 

@@ -1,7 +1,7 @@
-/* This file defines a TransformingFileLoader. This struct can be used in place 
+/* This file defines a TransformingFileLoader. This struct can be used in place
  * of the regular file loader used by rustc to read in any file it is about to compile
  * by setting `config.file_loader` (easiest way to do that is by using the `config()`
- * callback). This custom loader allows for using the regular AST visitor pattern but to 
+ * callback). This custom loader allows for using the regular AST visitor pattern but to
  * mutate *any* file, and not just the root.
 */
 use rustc_ast as ast;
@@ -14,7 +14,6 @@ use std::path::Path;
 
 use crate::common;
 use crate::types::ati_info::FunctionBoundaries;
-use crate::visitors::create_stubs;
 use crate::visitors::{TupleLiteralsVisitor, UpdateFnDeclsVisitor, import_root_crate};
 
 /// This FileLoader constructs an early intermediate AST of any file that is loaded
@@ -22,7 +21,7 @@ use crate::visitors::{TupleLiteralsVisitor, UpdateFnDeclsVisitor, import_root_cr
 /// pattern, before being written back into a string format and actually handed
 /// off to the rest of rustc. Rustc will then reconstruct this same AST, which is
 /// quite unfortunate. But, this overall allows for making AST modifications
-/// to files which are not just the crate root using the same infrastructure as the 
+/// to files which are not just the crate root using the same infrastructure as the
 /// rest of the compiler.
 // NIT: would be nice to make this accept a list of visitors to execute
 pub struct TransformingFileLoader {
@@ -69,20 +68,7 @@ impl TransformingFileLoader {
         let psess = Self::create_parse_sess();
         let (contents, file_type) = contents;
 
-        let items = common::parse_items(&psess, contents, Some(path));
-        let mut krate = ast::Crate {
-            id: ast::CRATE_NODE_ID,
-            attrs: ast::AttrVec::new(),
-            items: items.into(),
-            spans: ast::ModSpans::default(),
-            is_placeholder: false,
-        };
-
-        // discovers all functions that will be instrumented, and updates
-        // the function signatures to tag all passed-in params, if necessary.
-        // also updates type definitions in structs to have fields be tagged.
-        let mut fn_decls_vis = UpdateFnDeclsVisitor::new(&self.fbs);
-        fn_decls_vis.visit_crate(&mut krate);
+        let mut krate = common::parse_crate(&psess, contents, Some(path));
 
         // tuple all literals to create tags, untupling them as necessary
         // when they are passed into untracked functions, and further re-tupling returns
@@ -90,9 +76,16 @@ impl TransformingFileLoader {
         let mut tl_vis = TupleLiteralsVisitor::new(&self.fbs);
         tl_vis.visit_crate(&mut krate);
 
+        // discovers all functions that will be instrumented, and updates
+        // the function signatures to tag all passed-in params, if necessary.
+        // also updates type definitions in structs to have fields be tagged.
+        let mut fn_decls_vis = UpdateFnDeclsVisitor::new(&self.fbs);
+        fn_decls_vis.visit_crate(&mut krate);
+
         // create all required function stubs, which perform site management
         let fn_sigs = fn_decls_vis.get_new_fn_signatures();
-        create_stubs(&mut krate, &psess, &fn_sigs);
+        fn_sigs.create_stub_items(&mut krate, &psess);
+        // create_stubs(&mut krate, &psess, &fn_sigs);
 
         // make the ATI types available to dependancies
         if matches!(file_type, FileType::Dep) {
@@ -108,6 +101,8 @@ impl TransformingFileLoader {
     fn ast_to_source(&self, krate: &ast::Crate) -> String {
         let mut output = String::new();
 
+        // probably unnecessary right now, but these are the only "other thing"
+        // in the krate that is found in the source file.
         for attr in &krate.attrs {
             let attr_str = pprust::attribute_to_string(attr);
             output.push_str(&attr_str);
@@ -117,8 +112,10 @@ impl TransformingFileLoader {
         for item in &krate.items {
             let item_str = pprust::item_to_string(&item);
             output.push_str(&item_str);
-            output.push_str("\n\n");
+            output.push_str("\n\n"); // two \n just to match normal file loader
         }
+
+        println!("INSTRUMENTED:\n{output}");
 
         output
     }

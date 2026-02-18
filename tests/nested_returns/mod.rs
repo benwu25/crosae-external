@@ -1,56 +1,86 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
-use crate::common::{compile_and_execute, delete, verify};
+use crate::common::{ExpectedOutput, ExpectedSite, compile_and_execute, delete, verify};
 
 #[test]
 fn different_kinds_of_returns() {
-    let mut expected = HashMap::new();
-    expected.insert("main::ENTER", HashMap::new());
-    expected.insert("main::EXIT", HashMap::new());
-    expected.insert(
-        "implicit_return::ENTER",
-        HashMap::from([("x", 0), ("y", 1), ("z", 2)]),
+    let mut output = ExpectedOutput::new();
+    output.register_site(ExpectedSite::new("main::ENTER"));
+    output.register_site(ExpectedSite::new("main::EXIT"));
+
+    output.register_site(
+        ExpectedSite::new("implicit_return::ENTER")
+            .register("x", 0)
+            .register("y", 1)
+            .register("z", 2),
     );
-    expected.insert(
-        "implicit_return::EXIT",
-        HashMap::from([("x", 0), ("y", 0), ("z", 1), ("RET", 0)]),
+    output.register_site(
+        ExpectedSite::new("implicit_return::EXIT")
+            .register("x", 0)
+            .register("y", 0)
+            .register("z", 1)
+            .register("RET", 0),
     );
-    expected.insert(
-        "explicit_return::ENTER",
-        HashMap::from([("x", 0), ("y", 1), ("z", 2)]),
+    output.register_site(
+        ExpectedSite::new("explicit_return::ENTER")
+            .register("x", 0)
+            .register("y", 1)
+            .register("z", 2),
     );
-    expected.insert(
-        "explicit_return::EXIT",
-        HashMap::from([("x", 1), ("y", 0), ("z", 0), ("RET", 0)]),
+    output.register_site(
+        ExpectedSite::new("explicit_return::EXIT")
+            .register("x", 1)
+            .register("y", 0)
+            .register("z", 0)
+            .register("RET", 0),
     );
-    expected.insert(
-        "explicit_unsemi_return::ENTER",
-        HashMap::from([("x", 0), ("y", 1), ("z", 2)]),
+    output.register_site(
+        ExpectedSite::new("explicit_unsemi_return::ENTER")
+            .register("x", 0)
+            .register("y", 1)
+            .register("z", 2),
     );
-    expected.insert(
-        "explicit_unsemi_return::EXIT",
-        HashMap::from([("x", 0), ("y", 1), ("z", 0), ("RET", 0)]),
+    output.register_site(
+        ExpectedSite::new("explicit_unsemi_return::EXIT")
+            .register("x", 0)
+            .register("y", 1)
+            .register("z", 0)
+            .register("RET", 0),
     );
-    expected.insert(
-        "nested_implicit_return::ENTER",
-        HashMap::from([("x", 0), ("y", 0), ("z", 1)]),
+
+    output.register_site(
+        ExpectedSite::new("nested_implicit_return::ENTER")
+            .register("x", 0)
+            .register("y", 0)
+            .register("z", 1),
     );
-    expected.insert(
-        "nested_implicit_return::EXIT",
-        HashMap::from([("x", 0), ("y", 0), ("z", 0), ("RET", 0)]),
+
+    output.register_site(
+        ExpectedSite::new("nested_implicit_return::EXIT")
+            .register("x", 0)
+            .register("y", 0)
+            .register("z", 0)
+            .register("RET", 0),
     );
-    expected.insert(
-        "nested_explicit_return::ENTER",
-        HashMap::from([("x", 0), ("y", 0), ("z", 1)]),
+
+    output.register_site(
+        ExpectedSite::new("nested_explicit_return::ENTER")
+            .register("x", 0)
+            .register("y", 0)
+            .register("z", 1),
     );
-    expected.insert(
-        "nested_explicit_return::EXIT",
-        HashMap::from([("x", 0), ("y", 0), ("z", 0), ("RET", 0)]),
+
+    output.register_site(
+        ExpectedSite::new("nested_explicit_return::EXIT")
+            .register("x", 0)
+            .register("y", 0)
+            .register("z", 0)
+            .register("RET", 0),
     );
 
     let executable = Path::new(file!()).parent().unwrap().join("returns.out");
     delete(&executable);
 
     let ati_output = compile_and_execute(&executable);
-    verify(&ati_output, &expected);
+    verify(&ati_output, output.inner());
 }

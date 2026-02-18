@@ -1,4 +1,7 @@
+#![allow(unused)]
+
 // TODO: change this test to use stuff like .collect::<Vec<_>>()
+#[ignore]
 fn main() {
     let x: u32 = 10;
     let y: u32 = 20;

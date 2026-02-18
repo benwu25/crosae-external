@@ -14,7 +14,7 @@ use crate::{
 
 /// Callbacks struct to be passed into the compiler invocation.
 /// Notably, this pass comes after some function type information was discovered
-/// by running a different pass and querying the HIR. This information is 
+/// by running a different pass and querying the HIR. This information is
 /// passed via the `fbs` field.
 pub struct InstrumentAti {
     fbs: Option<FunctionBoundaries>,
