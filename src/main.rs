@@ -30,10 +30,11 @@ mod visitors;
 pub fn main() {
     let args: Vec<_> = env::args().collect();
 
-    let mut gather_info = callbacks::gather_orig::GatherAtiInfo::new();
-    rustc_driver::run_compiler(&args, &mut gather_info); // panics on compilation failure
-    let fbs = gather_info.pull_function_boundaries();
+    //let mut gather_info = callbacks::gather_orig::GatherAtiInfo::new();
+    //rustc_driver::run_compiler(&args, &mut gather_info); // panics on compilation failure
+    //let fbs = gather_info.pull_function_boundaries();
 
-    let mut instr = callbacks::create_instrumentation::InstrumentAti::new(fbs);
-    rustc_driver::run_compiler(&args, &mut instr);
+    //let mut instr = callbacks::create_instrumentation::InstrumentAti::new(fbs);
+    //rustc_driver::run_compiler(&args, &mut instr);
+    println!("Hello!!");
 }

@@ -55,7 +55,7 @@ impl TransformingFileLoader {
 
     /// Creates a new parser
     fn create_parse_sess() -> ParseSess {
-        ParseSess::new(Vec::from([rustc_driver::DEFAULT_LOCALE_RESOURCE]))
+        ParseSess::new()
     }
 
     /// Transforms the file at `path` which contains `contents`, by first parsing

@@ -241,6 +241,7 @@ impl<'a> UpdateFnDeclsVisitor<'a> {
             rustc_ast::TyKind::CVarArgs => panic!(),
             rustc_ast::TyKind::Dummy => panic!(),
             rustc_ast::TyKind::Err(_) => panic!(),
+            _ => todo!()
         };
     }
 }

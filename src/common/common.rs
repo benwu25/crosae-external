@@ -9,6 +9,8 @@ use rustc_parse::new_parser_from_source_str;
 use rustc_parse::parser::ForceCollect;
 use rustc_session::parse::ParseSess;
 use rustc_span::{FileName, RealFileName, sym};
+use rustc_parse::parser::AllowConstBlockItems;
+
 
 use std::path::Path;
 
@@ -262,6 +264,7 @@ pub fn get_type_string(ty_path: &ast::Ty) -> String {
         // we are trying to get a well formed type string. 
         // encountering this means thats impossible
         rustc_ast::TyKind::Infer => panic!(),
+        _ => todo!()
     }
 }
 
@@ -293,7 +296,7 @@ pub fn parse_items(
 
     let mut res = Vec::new();
     loop {
-        match parser.parse_item(ForceCollect::No) {
+        match parser.parse_item(ForceCollect::No, AllowConstBlockItems::Yes) {
             Ok(Some(item)) => {
                 res.push(item);
             }
