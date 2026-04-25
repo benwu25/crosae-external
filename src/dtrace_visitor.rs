@@ -42,7 +42,6 @@ pub enum ScopeType {
 */
 pub struct DaikonDtraceVisitor<'a> {
     // For parsing string fragments.
-    //pub parser: &'a Parser<'a>,
     pub psess: &'a ParseSess,
 
     // For adding impl blocks which bundle dtrace_* routines.
@@ -1005,7 +1004,7 @@ impl<'a> DaikonDtraceVisitor<'a> {
         // let struct_as_ret = build_phony_ret(spliced_struct.clone()); // FIXME: fix splice string to handle pub keyword
         the_impl.self_ty = Box::new(struct_ty.clone());
         // FIXME: remove this.
-        // match &self.parser.self.parse_items_from_source_string(struct_as_ret) {
+        // match &self.parse_items_from_source_string(struct_as_ret) {
         //     Err(_why) => panic!("Parsing phony arg failed"),
         //     Ok(arg_items) => match &arg_items[0].kind {
         //         ItemKind::Fn(phony) => match &phony.sig.decl.output {
@@ -2259,8 +2258,10 @@ impl<'a> MutVisitor for DaikonDtraceVisitor<'a> {
                                 )));
                             }
                             GenericParamKind::Type { default: _ } => {
-				// Skip generic types for now.
-				return;
+                                // Fix generic types for now.
+                                // TODO: return.
+                                // return;
+                                panic!("Struct has type generic arg.")
                             }
                             GenericParamKind::Const { ty: _, span: _, default: _ } => {
                                 panic!("Enum has const generic arg.")
