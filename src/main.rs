@@ -1,8 +1,3 @@
-// next steps here
-// copy all visitor routines to separate file, also all the string-building stuff to another file
-// for the visitor to use.
-// import the visitor here to replace TestVisitor.
-
 // Tested with nightly-current (04/24/2026)
 
 #![feature(rustc_private)]
@@ -23,9 +18,11 @@ extern crate rustc_parse;
 mod dtrace_visitor;
 mod daikon_strs;
 mod dtrace_routine_builders;
+mod decls_builder;
 
 use crate::dtrace_visitor::*;
 use crate::daikon_strs::{DTRACE_IMPORTS, daikon_lib};
+use crate::decls_builder::*;
 
 use std::io;
 use std::io::Write;
@@ -39,18 +36,11 @@ use rustc_interface::interface::{Compiler, Config};
 use rustc_middle::ty::TyCtxt;
 use rustc_ast::mut_visit;
 use rustc_ast::mut_visit::*;
+use rustc_ast::visit;
+use rustc_ast::visit::*;
+use rustc_ast::Item;
 use rustc_session::parse::ParseSess;
-
-struct TestVisitor {}
-
-impl MutVisitor for TestVisitor {
-    fn visit_fn(&mut self, mut fk: FnKind<'_>, _attrs: &rustc_ast::AttrVec, _span: rustc_span::Span, _id: rustc_ast::NodeId) {
-        println!("Hello fn!");
-
-        mut_visit::walk_fn(self, fk);
-    }
-}
-
+use rustc_data_structures::fx::FxHashMap;
 
 struct MyFileLoader {
     real_loader: rustc_span::source_map::RealFileLoader,
@@ -66,6 +56,8 @@ impl rustc_span::source_map::FileLoader for MyFileLoader {
     }
 
     fn read_file(&self, path: &Path) -> io::Result<String> {
+
+        // change this: do checks on file name (DO_VISITOR)
 
         let contents = self.real_loader.read_file(path).unwrap();
         let psess = rustc_session::parse::ParseSess::new();
@@ -121,6 +113,7 @@ impl rustc_span::source_map::FileLoader for MyFileLoader {
 }
 
 struct MyCallbacks;
+struct MyCallbacks1; // change this: rename to decls callbacks or something, only temporary
 
 impl rustc_driver::Callbacks for MyCallbacks {
     fn config(&mut self, config: &mut Config) {
@@ -140,8 +133,46 @@ impl rustc_driver::Callbacks for MyCallbacks {
     }
 }
 
+impl rustc_driver::Callbacks for MyCallbacks1 {
+    fn config(&mut self, config: &mut Config) {}
+
+    fn after_crate_root_parsing(
+        &mut self,
+        _compiler: &Compiler,
+        krate: &mut rustc_ast::Crate,
+    ) -> Compilation {
+        let mut struct_map: FxHashMap<String, Box<Item>> = FxHashMap::default();
+        let mut map_builder = DeclsHashMapBuilder { map: &mut struct_map };
+        map_builder.visit_crate(&krate);
+
+        let decls_path = format!("{}{}", *OUTPUT_PREFIX.lock().unwrap(), ".decls");
+        let decls = std::path::Path::new(&decls_path);
+        std::fs::File::create(&decls).unwrap();
+        let dtrace_path = format!("{}{}", *OUTPUT_PREFIX.lock().unwrap(), ".dtrace");
+        let dtrace = std::path::Path::new(&dtrace_path);
+        std::fs::File::create(&dtrace).unwrap();
+        write_header();
+        write_newline();
+        let mut decls_visitor = DaikonDeclsVisitor {
+            map: &struct_map,
+            depth_limit: 4,
+            scope_stack: &mut VecDeque::new(),
+        };
+        decls_visitor.visit_crate(&krate);
+
+        Compilation::Stop
+    }
+
+    fn after_analysis(&mut self, _compiler: &Compiler, _tcx: TyCtxt<'_>) -> Compilation {
+        Compilation::Continue
+    }
+}
+
 fn main() {
     // change this: forward our command line args to run_compiler.
     let args: Vec<String> = std::env::args().collect();
+    run_compiler(&args, &mut MyCallbacks1);
+    // NOTE: previously, decls pass relied on dtrace pass inserting explicit return
+    // stmts at the end of void-returning functions. Can't rely on this now.
     run_compiler(&args, &mut MyCallbacks);
 }

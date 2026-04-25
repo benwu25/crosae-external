@@ -20,6 +20,7 @@ use crate::dtrace_routine_builders::*;
 
 // change this (set properly)
 pub static OUTPUT_PREFIX: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::from("main")));
+static PARSER_COUNTER: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(0));
 
 // Represents a scope that we are instrumenting/visiting,
 // see DaikonDtraceVisitor::scope_stack member. If we are
@@ -2327,6 +2328,3 @@ impl<'a> MutVisitor for DaikonDtraceVisitor<'a> {
         //match &mut item.kind {
     }
 }
-
-
-static PARSER_COUNTER: LazyLock<Mutex<u32>> = LazyLock::new(|| Mutex::new(0));
