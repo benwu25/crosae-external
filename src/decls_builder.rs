@@ -1419,7 +1419,7 @@ impl<'a> Visitor<'a> for DaikonDeclsVisitor<'a> {
                     _ => {}
                 },
                 _ => {}
-            }
+            },
             ItemKind::Impl(imp) => match &imp.self_ty.kind {
                 TyKind::Path(_, path) => {
                     let plain_struct = String::from(path.segments[0].ident.as_str());
@@ -1427,21 +1427,22 @@ impl<'a> Visitor<'a> for DaikonDeclsVisitor<'a> {
                     do_pop = true;
                 }
                 _ => {}
-            }
-	    ItemKind::Struct(_, generics, variant_data) => match variant_data {
-		VariantData::Struct { fields: _, recovered: _ } => {
-      		    for i in 0..generics.params.len() {
-    		        match &generics.params[i].kind {
-	                    GenericParamKind::Type { default: _ } => {
-			        // Skip generic types for now.
-			        return;
-			    }
-			    _ => {}
-		        }
-		    }
-		}
-		_ => {}
-	    }
+            },
+            // TODO: skip generic types
+         /* ItemKind::Struct(_, generics, variant_data) => match variant_data {
+                VariantData::Struct { fields: _, recovered: _ } => {
+                    for i in 0..generics.params.len() {
+                        match &generics.params[i].kind {
+                            GenericParamKind::Type { default: _ } => {
+                                // Skip generic types for now.
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
+            }, */
             _ => {}
         };
 
