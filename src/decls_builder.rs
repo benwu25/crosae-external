@@ -4,13 +4,13 @@ use std::io::Write as FileWrite;
 use std::mem;
 use std::sync::{LazyLock, Mutex};
 
-use rustc_data_structures::thin_vec::{ThinVec, thin_vec};
-use rustc_data_structures::fx::FxHashMap;
-use rustc_ast::*;
+use crate::OUTPUT_PREFIX;
+use crate::daikon_strs::*;
 use rustc_ast::visit;
 use rustc_ast::visit::*;
-use crate::daikon_strs::*;
-use crate::OUTPUT_PREFIX;
+use rustc_ast::*;
+use rustc_data_structures::fx::FxHashMap;
+use rustc_data_structures::thin_vec::{ThinVec, thin_vec};
 
 // Given a parameter pat, return its identifier name in a String.
 // * `pat` - Pat struct representing a parameter identifier.
@@ -184,8 +184,12 @@ impl<'a> Visitor<'a> for DeclsHashMapBuilder<'a> {
     fn visit_item(&mut self, item: &'a Item) {
         match &item.kind {
             ItemKind::Struct(ident, _, variant_data) => match variant_data {
-                VariantData::Struct { fields: _, recovered: _ } => {
-                    self.map.insert(String::from(ident.as_str()), Box::new(item.clone()));
+                VariantData::Struct {
+                    fields: _,
+                    recovered: _,
+                } => {
+                    self.map
+                        .insert(String::from(ident.as_str()), Box::new(item.clone()));
                 }
                 VariantData::Tuple(_, _) => {}
                 _ => {}
@@ -300,7 +304,10 @@ impl<'a> ArrayContents<'a> {
                     }
                     Some(struct_item) => match &struct_item.kind {
                         ItemKind::Struct(_, _, variant_data) => match variant_data {
-                            VariantData::Struct { fields, recovered: _ } => fields.clone(),
+                            VariantData::Struct {
+                                fields,
+                                recovered: _,
+                            } => fields.clone(),
                             _ => panic!("Struct is not VariantData::Struct"),
                         },
                         _ => panic!("struct_item is not a struct"),
@@ -694,7 +701,10 @@ impl<'a> TopLevlDecl<'a> {
                     }
                     Some(struct_item) => match &struct_item.kind {
                         ItemKind::Struct(_, _, variant_data) => match variant_data {
-                            VariantData::Struct { fields, recovered: _ } => fields.clone(),
+                            VariantData::Struct {
+                                fields,
+                                recovered: _,
+                            } => fields.clone(),
                             _ => panic!("Struct is not VariantData::Struct"),
                         },
                         _ => panic!("struct_item is not a struct"),
@@ -916,7 +926,13 @@ impl<'a> DaikonDeclsVisitor<'a> {
                     );
                     return block_idx + 1;
                 }
-                ExprKind::ForLoop { pat: _, iter: _, body: for_block, label: _, kind: _ } => {
+                ExprKind::ForLoop {
+                    pat: _,
+                    iter: _,
+                    body: for_block,
+                    label: _,
+                    kind: _,
+                } => {
                     self.block_to_decls(
                         ppt_name,
                         for_block,
@@ -1429,7 +1445,7 @@ impl<'a> Visitor<'a> for DaikonDeclsVisitor<'a> {
                 _ => {}
             },
             // TODO: skip generic types
-         /* ItemKind::Struct(_, generics, variant_data) => match variant_data {
+            /* ItemKind::Struct(_, generics, variant_data) => match variant_data {
                 VariantData::Struct { fields: _, recovered: _ } => {
                     for i in 0..generics.params.len() {
                         match &generics.params[i].kind {
@@ -1463,5 +1479,11 @@ static DECLS: LazyLock<Mutex<Option<std::fs::File>>> = LazyLock::new(|| Mutex::n
 fn decls_open() -> Option<std::fs::File> {
     let decls_path = format!("{}{}", *OUTPUT_PREFIX.lock().unwrap(), ".decls");
     let decls = std::path::Path::new(&decls_path);
-    Some(std::fs::File::options().write(true).append(true).open(&decls).unwrap())
+    Some(
+        std::fs::File::options()
+            .write(true)
+            .append(true)
+            .open(&decls)
+            .unwrap(),
+    )
 }
