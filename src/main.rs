@@ -41,6 +41,7 @@ use rustc_driver::{Compilation, run_compiler};
 use rustc_interface::interface::{Compiler, Config};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::parse::ParseSess;
+use rustc_session::config::{Input, OutFileName};
 
 struct MyFileLoader {
     real_loader: rustc_span::source_map::RealFileLoader,
@@ -68,6 +69,12 @@ impl rustc_span::source_map::FileLoader for MyFileLoader {
         )
         .unwrap();
         let mut file_ast = tmp_parser.parse_crate_mod().unwrap();
+
+        // add this: maybe run clippy::implicit_return lint to add explicit returns.
+        // Or just require the user to run this lint before running the frontend on
+        // a copy of their code (although, clippy can undo the implicit_return lint
+        // just by running it again, but it complains about untracked changes, etc.)
+        // In the testsuite, we can definitely run it before testing.
 
         let mut dtrace_visitor = DaikonDtraceVisitor {
             psess: &ParseSess::new(),
@@ -149,14 +156,47 @@ impl rustc_driver::Callbacks for MyCallbacks {
     }
 }
 
+// change this: move it somewhere else.
+pub fn set_output_prefix(input_name: String) {
+    let dot_idx = match input_name.rfind(".") {
+        // .rs
+        None => panic!("no '.' at the end of input file name {}", input_name),
+        Some(end) => end,
+    };
+    let slash_idx = match input_name.rfind("/") {
+        // .../<crate>.rs
+        None => 0,
+        Some(slash) => slash + 1,
+    };
+    let res = &input_name[slash_idx..dot_idx];
+    *OUTPUT_PREFIX.lock().unwrap() = String::from(res);
+}
+
 impl rustc_driver::Callbacks for MyCallbacks1 {
     fn config(&mut self, config: &mut Config) {}
 
     fn after_crate_root_parsing(
         &mut self,
-        _compiler: &Compiler,
+        compiler: &Compiler,
         krate: &mut rustc_ast::Crate,
     ) -> Compilation {
+        // Get output file.
+        let sess = &compiler.sess;
+        match &sess.io.output_file {
+            None => match &sess.io.input {
+                Input::File(path) => {
+                    set_output_prefix(String::from(path.to_str().unwrap()))
+                }
+                _ => {}
+            },
+            Some(ofile) => match &ofile {
+                OutFileName::Real(path) => {
+                    *OUTPUT_PREFIX.lock().unwrap() = String::from(path.to_str().unwrap());
+                }
+                _ => {}
+            }
+        };
+
         let mut struct_map: FxHashMap<String, Box<Item>> = FxHashMap::default();
         let mut map_builder = DeclsHashMapBuilder {
             map: &mut struct_map,
@@ -187,10 +227,9 @@ impl rustc_driver::Callbacks for MyCallbacks1 {
 }
 
 fn main() {
-    // change this: forward our command line args to run_compiler.
     let args: Vec<String> = std::env::args().collect();
+
     run_compiler(&args, &mut MyCallbacks1);
-    // NOTE: previously, decls pass relied on dtrace pass inserting explicit return
-    // stmts at the end of void-returning functions. Can't rely on this now.
+
     run_compiler(&args, &mut MyCallbacks);
 }
